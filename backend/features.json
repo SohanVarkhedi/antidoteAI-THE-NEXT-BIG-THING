@@ -1,0 +1,80 @@
+{
+  "features": [
+    {
+      "index": 0,
+      "name": "mean radius",
+      "min": 8.458359999999999,
+      "max": 24.37160000000002,
+      "mean": 14.127291739894552
+    },
+    {
+      "index": 1,
+      "name": "mean texture",
+      "min": 10.9304,
+      "max": 30.652000000000005,
+      "mean": 19.289648506151142
+    },
+    {
+      "index": 2,
+      "name": "mean perimeter",
+      "min": 53.827600000000004,
+      "max": 165.72400000000002,
+      "mean": 91.96903339191564
+    },
+    {
+      "index": 3,
+      "name": "mean area",
+      "min": 215.664,
+      "max": 1786.600000000004,
+      "mean": 654.8891036906855
+    },
+    {
+      "index": 4,
+      "name": "mean smoothness",
+      "min": 0.06865399999999999,
+      "max": 0.13288800000000003,
+      "mean": 0.0963602811950791
+    },
+    {
+      "index": 5,
+      "name": "mean compactness",
+      "min": 0.0333508,
+      "max": 0.27719200000000005,
+      "mean": 0.10434098418277679
+    },
+    {
+      "index": 6,
+      "name": "mean concavity",
+      "min": 0.0,
+      "max": 0.35168800000000006,
+      "mean": 0.0887993158172232
+    },
+    {
+      "index": 7,
+      "name": "mean concave points",
+      "min": 0.0,
+      "max": 0.16420800000000035,
+      "mean": 0.04891914586994728
+    },
+    {
+      "index": 8,
+      "name": "mean symmetry",
+      "min": 0.129508,
+      "max": 0.259564,
+      "mean": 0.18116186291739894
+    },
+    {
+      "index": 9,
+      "name": "mean fractal dimension",
+      "min": 0.051504,
+      "max": 0.08543760000000016,
+      "mean": 0.06279760984182776
+    }
+  ],
+  "target_names": [
+    "malignant",
+    "benign"
+  ],
+  "n_features": 10,
+  "dataset": "Breast Cancer Wisconsin"
+}
