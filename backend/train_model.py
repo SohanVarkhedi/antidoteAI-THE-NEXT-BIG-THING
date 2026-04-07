@@ -1,85 +1,72 @@
 """
-ANTIDOTE-AI — Model Training Script
-Dataset: Wisconsin Breast Cancer (sklearn built-in)
-Model: RandomForestClassifier
-
-Run this ONCE before starting the API server:
-    python train_model.py
-
-Outputs:
-    model.pkl      — trained classifier
-    scaler.pkl     — fitted StandardScaler
-    features.json  — feature names & stats for the dashboard
+Model Trainer — Antidote AI
+Trains a RandomForestClassifier on the cleaned dataset and persists it.
 """
 
-import json, joblib, numpy as np
-from sklearn.datasets import load_breast_cancer
+import os
+import numpy as np
+import pandas as pd
+import joblib
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import classification_report, accuracy_score
+from sklearn.metrics import accuracy_score
 
-# ── Load dataset ────────────────────────────────────────────────────────────
-data = load_breast_cancer()
-X, y = data.data, data.target          # 569 samples, 30 features
-# 0 = malignant (threat) | 1 = benign (safe)
+MODEL_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
 
-# ── Use first 10 features (most interpretable for sliders) ──────────────────
-FEATURE_INDICES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-FEATURE_NAMES   = [data.feature_names[i] for i in FEATURE_INDICES]
-X = X[:, FEATURE_INDICES]
 
-# ── Train / test split ──────────────────────────────────────────────────────
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42, stratify=y
-)
+def train_model(cleaned_df: pd.DataFrame, target_column: str = "target") -> dict:
+    """
+    Train a RandomForestClassifier on the cleaned data.
 
-# ── Scale ───────────────────────────────────────────────────────────────────
-scaler = StandardScaler()
-X_train_s = scaler.fit_transform(X_train)
-X_test_s  = scaler.transform(X_test)
+    Parameters
+    ----------
+    cleaned_df : pd.DataFrame
+        Cleaned dataset with features and a target column.
+    target_column : str
+        Name of the label column.
 
-# ── Train model ─────────────────────────────────────────────────────────────
-clf = RandomForestClassifier(
-    n_estimators=200,
-    max_depth=8,
-    random_state=42,
-    class_weight="balanced",
-)
-clf.fit(X_train_s, y_train)
+    Returns
+    -------
+    dict  {"accuracy": float, "n_samples": int, "n_features": int, "model_path": str}
+    """
+    if target_column not in cleaned_df.columns:
+        raise ValueError(f"Target column '{target_column}' not found in dataset.")
 
-# ── Evaluate ─────────────────────────────────────────────────────────────────
-preds = clf.predict(X_test_s)
-acc   = accuracy_score(y_test, preds)
-print(f"\n{'='*52}")
-print(f"  Breast Cancer Dataset — RandomForest")
-print(f"  Test accuracy : {acc*100:.2f}%")
-print(f"{'='*52}")
-print(classification_report(y_test, preds, target_names=data.target_names))
+    X = cleaned_df.drop(columns=[target_column]).select_dtypes(include=[np.number])
+    y = cleaned_df[target_column]
 
-# ── Save artefacts ───────────────────────────────────────────────────────────
-joblib.dump(clf,    "model.pkl")
-joblib.dump(scaler, "scaler.pkl")
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
 
-# Per-feature min/max in ORIGINAL (unscaled) space for slider bounds
-feature_meta = []
-for i, name in enumerate(FEATURE_NAMES):
-    col = X[:, i]
-    feature_meta.append({
-        "index": i,
-        "name":  name,
-        "min":   float(np.percentile(col, 1)),
-        "max":   float(np.percentile(col, 99)),
-        "mean":  float(np.mean(col)),
-    })
+    clf = RandomForestClassifier(
+        n_estimators=150,
+        max_depth=12,
+        random_state=42,
+        n_jobs=-1,
+    )
+    clf.fit(X_train, y_train)
 
-with open("features.json", "w") as f:
-    json.dump({
-        "features":      feature_meta,
-        "target_names":  list(data.target_names),   # ["malignant", "benign"]
-        "n_features":    len(FEATURE_NAMES),
-        "dataset":       "Breast Cancer Wisconsin",
-    }, f, indent=2)
+    y_pred = clf.predict(X_test)
+    acc = float(accuracy_score(y_test, y_pred))
 
-print("Saved: model.pkl | scaler.pkl | features.json")
-print("Run:   uvicorn main:app --reload")
+    # Save model
+    os.makedirs(MODEL_DIR, exist_ok=True)
+    model_path = os.path.join(MODEL_DIR, "base_model.pkl")
+    joblib.dump(clf, model_path)
+
+    # Save feature count for inference validation
+    meta_path = os.path.join(MODEL_DIR, "meta.pkl")
+    meta = {
+        "n_features": int(X.shape[1]),
+        "feature_names": list(X.columns),
+        "target_column": target_column,
+    }
+    joblib.dump(meta, meta_path)
+
+    return {
+        "accuracy": round(acc, 4),
+        "n_samples": int(len(X_train)),
+        "n_features": int(X.shape[1]),
+        "model_path": model_path,
+    }

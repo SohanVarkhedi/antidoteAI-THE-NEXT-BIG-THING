@@ -1,1260 +1,304 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>ANTIDOTE — Adversarially Robust AI Defense</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<style>
-/* ═══════════════════════════════════════════════════════════════
-   DESIGN TOKENS — Gold / Midnight theme (matches hero page)
-═══════════════════════════════════════════════════════════════ */
-:root{
-  --bg:#03070f; --bg2:#060d1a; --surface:#080f1e; --surface2:#0c1628;
-  --gold:#c8a84b; --gold2:#e8c87a; --gold-dim:rgba(200,168,75,0.12); --gold-glow:rgba(200,168,75,0.22);
-  --blue:#1a8fff; --blue2:#5fb8ff; --blue-glow:rgba(26,143,255,0.25);
-  --teal:#00d4aa; --red:#ff4444; --amber:#ffaa00;
-  --text:#cdd8e8; --muted:#3a5070; --muted2:#1e3048;
-  --border:rgba(200,168,75,0.10); --border-b:rgba(200,168,75,0.28);
-  --font-d:'Orbitron',monospace; --font-b:'Rajdhani',sans-serif; --font-m:'Share Tech Mono',monospace;
-  --ease:cubic-bezier(0.86,0,0.31,1); --ease2:cubic-bezier(0.35,0.35,0,1);
-}
-
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html{scroll-behavior:smooth;font-size:16px}
-body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x:hidden;cursor:none;}
-
-/* Scanline + noise overlays */
-body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9000;opacity:.55;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");}
-body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:8999;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.04) 3px,rgba(0,0,0,0.04) 4px);}
-
-/* ═══ CURSOR ═══════════════════════════════════════════════════ */
-#cur{position:fixed;width:12px;height:12px;border:1.5px solid var(--gold);border-radius:50%;pointer-events:none;z-index:9999;transform:translate(-50%,-50%);transition:width .18s,height .18s;}
-#cur-ring{position:fixed;width:40px;height:40px;border:1px solid rgba(200,168,75,0.35);border-radius:50%;pointer-events:none;z-index:9998;transform:translate(-50%,-50%);}
-#cur.hover{width:6px;height:6px;background:var(--gold);}
-#three-canvas{position:fixed;inset:0;z-index:0;}
-
-/* ═══ NAV ══════════════════════════════════════════════════════ */
-nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 52px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);background:rgba(3,7,15,0.82);backdrop-filter:blur(28px);}
-.nav-logo{font-family:var(--font-d);font-size:15px;font-weight:700;letter-spacing:.12em;color:var(--gold);display:flex;align-items:center;gap:10px;}
-.nav-dot{width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);animation:pulse 2.4s ease infinite;}
-.nav-links{display:flex;gap:32px;list-style:none;}
-.nav-links a{font-family:var(--font-m);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);text-decoration:none;transition:color .2s;}
-.nav-links a:hover{color:var(--gold);}
-.nav-cta{font-family:var(--font-m);font-size:10px;letter-spacing:.12em;text-transform:uppercase;padding:10px 22px;border:1px solid var(--border-b);color:var(--gold);background:transparent;cursor:none;transition:background .2s,box-shadow .2s;clip-path:polygon(8px 0%,100% 0%,calc(100%-8px) 100%,0% 100%);}
-.nav-cta:hover{background:var(--gold-dim);box-shadow:0 0 20px var(--gold-glow);}
-
-/* ═══ SHARED UTILS ═════════════════════════════════════════════ */
-@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.5)}}
-@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-@keyframes blink{50%{opacity:0}}
-@keyframes spin-slow{to{transform:rotate(360deg)}}
-@keyframes hspinA{to{transform:rotate(360deg)}}
-@keyframes hspinB{to{transform:rotate(-360deg)}}
-@keyframes hblink{0%,100%{opacity:.6}50%{opacity:.1}}
-@keyframes blink-red{0%,100%{opacity:1}50%{opacity:.55}}
-@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
-@keyframes dot-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.7)}}
-@keyframes pulse-border{0%,100%{box-shadow:0 0 0 0 rgba(200,168,75,.4)}50%{box-shadow:0 0 8px 2px rgba(200,168,75,.2)}}
-
-.sl{font-family:var(--font-m);font-size:9px;letter-spacing:.25em;text-transform:uppercase;color:var(--gold);margin-bottom:14px;display:flex;align-items:center;gap:10px;}
-.sl::before{content:'';width:18px;height:1px;background:var(--gold);}
-.st{font-family:var(--font-d);font-size:clamp(26px,4.2vw,54px);font-weight:800;letter-spacing:-.02em;line-height:1.05;}
-.reveal{opacity:0;transform:translateY(24px);transition:opacity .9s var(--ease),transform .9s var(--ease);}
-.reveal.visible{opacity:1;transform:translateY(0);}
-.rd1{transition-delay:.1s}.rd2{transition-delay:.2s}.rd3{transition-delay:.3s}.rd4{transition-delay:.4s}
-
-/* ═══════════════════════════════════════════════════════════════
-   LANDING PAGE
-═══════════════════════════════════════════════════════════════ */
-#landing{position:relative;z-index:1;}
-
-/* Hero */
-.hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:130px 52px 80px;position:relative;overflow:hidden;}
-.hero-badge{display:inline-flex;align-items:center;gap:10px;font-family:var(--font-m);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin-bottom:24px;opacity:0;animation:fadeUp .7s .1s ease both;}
-.hero-badge::before{content:'';width:28px;height:1px;background:var(--gold);}
-.badge-dot{width:5px;height:5px;border-radius:50%;background:var(--gold);box-shadow:0 0 6px var(--gold);animation:pulse 1.5s infinite;}
-.hero-title{font-family:var(--font-d);font-size:clamp(42px,8.5vw,118px);font-weight:900;line-height:.9;letter-spacing:-.02em;max-width:900px;opacity:0;animation:fadeUp .9s .25s ease both;}
-.hero-title .outline{-webkit-text-stroke:1.5px var(--gold);color:transparent;}
-.hero-title .solid{color:var(--gold);}
-.hero-title .blue{color:var(--blue);text-shadow:0 0 50px rgba(26,143,255,.4);}
-.hero-sub{margin-top:32px;max-width:440px;font-size:1.05rem;color:var(--muted);line-height:1.75;opacity:0;animation:fadeUp .9s .4s ease both;}
-.hero-actions{margin-top:44px;display:flex;gap:14px;opacity:0;animation:fadeUp .9s .55s ease both;}
-.btn-p{font-family:var(--font-m);font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:15px 32px;background:var(--gold);color:#03070f;border:none;cursor:none;transition:box-shadow .3s,transform .2s;clip-path:polygon(10px 0%,100% 0%,calc(100% - 10px) 100%,0% 100%);}
-.btn-p:hover{box-shadow:0 0 40px var(--gold-glow);transform:translateY(-2px);}
-.btn-g{font-family:var(--font-m);font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:14px 32px;background:transparent;color:var(--muted);border:1px solid rgba(255,255,255,.08);cursor:none;transition:color .2s,border-color .2s;}
-.btn-g:hover{color:var(--text);border-color:rgba(255,255,255,.2);}
-.hero-stats{position:absolute;right:52px;bottom:80px;display:flex;flex-direction:column;gap:22px;text-align:right;opacity:0;animation:fadeUp 1s .8s ease both;}
-.hs-n{font-family:var(--font-d);font-size:32px;font-weight:800;color:var(--gold);line-height:1;text-shadow:0 0 24px var(--gold-glow);}
-.hs-l{font-family:var(--font-m);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:3px;}
-.hero-hud{position:absolute;right:52px;top:140px;opacity:0;animation:fadeUp 1s .9s ease both;pointer-events:none;}
-.hud-ring-a{animation:hspinA 12s linear infinite;transform-origin:140px 140px;}
-.hud-ring-b{animation:hspinB 18s linear infinite;transform-origin:140px 140px;}
-.hud-blink{animation:hblink 2.5s ease-in-out infinite;}
-
-/* Threats */
-.threat-section{padding:100px 52px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:72px;align-items:center;}
-.threat-desc{margin-top:22px;font-size:1rem;color:var(--muted);max-width:400px;line-height:1.75;}
-.threat-tags{margin-top:28px;display:flex;gap:10px;flex-wrap:wrap;}
-.tag{font-family:var(--font-m);font-size:8px;letter-spacing:.14em;border:1px solid var(--border-b);color:var(--gold);padding:4px 10px;text-transform:uppercase;}
-.threat-panel{background:var(--surface);border:1px solid var(--border);padding:32px;position:relative;overflow:hidden;clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,16px 100%,0 calc(100% - 16px));}
-.threat-panel::before{content:'LIVE THREAT FEED';position:absolute;top:0;right:16px;font-family:var(--font-m);font-size:8px;letter-spacing:.2em;background:var(--gold);color:#03070f;padding:3px 10px;font-weight:600;}
-.tr{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid rgba(200,168,75,0.07);}
-.tr:last-of-type{border-bottom:none;}
-.tr-ico{width:34px;height:34px;border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;border:1px solid var(--border);background:var(--surface2);}
-.tr-name{flex:1;}
-.tr-n1{font-family:var(--font-d);font-size:10px;letter-spacing:.04em;font-weight:600;}
-.tr-n2{font-family:var(--font-m);font-size:9px;color:var(--muted);margin-top:2px;letter-spacing:.04em;}
-.tr-bar{width:90px;height:3px;background:var(--surface2);border-radius:2px;overflow:hidden;flex-shrink:0;}
-.tr-fill{height:100%;border-radius:2px;width:0%;transition:width 1.6s cubic-bezier(.22,1,.36,1);}
-.tr-pct{font-family:var(--font-d);font-size:13px;font-weight:800;min-width:38px;text-align:right;}
-.tr-badge{font-family:var(--font-m);font-size:8px;padding:3px 7px;font-weight:600;min-width:50px;text-align:center;letter-spacing:.06em;}
-#waveform{display:block;width:100%;margin-top:18px;}
-
-/* Metrics */
-.metrics-section{padding:100px 52px;border-top:1px solid var(--border);}
-.metrics-header{margin-bottom:52px;display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:end;}
-.metrics-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border);}
-.mc{background:var(--bg);padding:32px 28px;position:relative;overflow:hidden;cursor:none;transition:background .3s;}
-.mc:hover{background:var(--surface);}
-.mc::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--gold),var(--blue));transform:scaleX(0);transform-origin:left;transition:transform .4s var(--ease2);}
-.mc:hover::after{transform:scaleX(1);}
-.mc-n{font-family:var(--font-d);font-size:44px;font-weight:800;color:var(--gold);line-height:1;letter-spacing:-.02em;text-shadow:0 0 30px var(--gold-glow);}
-.mc-u{font-family:var(--font-m);font-size:10px;color:var(--muted);margin-top:4px;letter-spacing:.06em;}
-.mc-l{font-family:var(--font-d);font-size:11px;font-weight:700;margin-top:14px;letter-spacing:.04em;}
-.mc-d{font-size:.82rem;color:var(--muted);margin-top:8px;line-height:1.55;}
-.mc-i{position:absolute;top:20px;right:20px;font-size:18px;opacity:.12;}
-
-/* 3D cards */
-.cards-section{padding:100px 52px;border-top:1px solid var(--border);perspective:1200px;overflow:hidden;}
-.cards-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:52px;transform-style:preserve-3d;}
-.c3d{background:var(--surface);border:1px solid var(--border);padding:28px;transition:transform .45s cubic-bezier(.22,1,.36,1),box-shadow .45s,border-color .45s;cursor:none;position:relative;overflow:hidden;transform-style:preserve-3d;clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px));}
-.c3d::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at var(--mx,50%) var(--my,50%),rgba(200,168,75,.08),transparent 55%);opacity:0;transition:opacity .3s;}
-.c3d:hover{box-shadow:0 24px 60px rgba(0,0,0,.7),0 0 30px rgba(200,168,75,.1);border-color:var(--border-b);}
-.c3d:hover::before{opacity:1;}
-.c3d-i{font-size:28px;margin-bottom:18px;display:block;}
-.c3d-t{font-family:var(--font-m);font-size:9px;letter-spacing:.16em;color:var(--gold);text-transform:uppercase;margin-bottom:8px;}
-.c3d-h{font-family:var(--font-d);font-size:13px;font-weight:700;margin-bottom:10px;letter-spacing:.04em;}
-.c3d-b{font-size:.85rem;color:var(--muted);line-height:1.6;}
-
-/* How it works */
-.how-section{padding:100px 52px;border-top:1px solid var(--border);}
-.how-list{margin-top:52px;display:flex;flex-direction:column;}
-.how-item{display:grid;grid-template-columns:56px 1fr 1fr;gap:36px;padding:36px 0;border-bottom:1px solid var(--border);align-items:start;cursor:none;transition:padding-left .3s;}
-.how-item:hover{padding-left:14px;}
-.how-num{font-family:var(--font-m);font-size:10px;color:var(--muted);padding-top:4px;letter-spacing:.1em;}
-.how-title{font-family:var(--font-d);font-size:17px;font-weight:700;letter-spacing:.02em;line-height:1.2;}
-.how-title span{color:var(--gold);}
-.how-body{font-size:.9rem;color:var(--muted);line-height:1.65;}
-.how-tag{display:inline-block;font-family:var(--font-m);font-size:8px;letter-spacing:.14em;text-transform:uppercase;border:1px solid var(--border-b);color:var(--gold);padding:4px 10px;margin-top:12px;}
-
-/* Terminal */
-.term-section{padding:100px 52px;border-top:1px solid var(--border);}
-.term-wrap{margin-top:40px;background:#020509;border:1px solid var(--border);overflow:hidden;position:relative;clip-path:polygon(0 0,calc(100% - 20px) 0,100% 20px,100% 100%,20px 100%,0 calc(100% - 20px));}
-.term-hdr{background:var(--surface);padding:12px 18px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);}
-.td{width:9px;height:9px;border-radius:50%;}
-.term-ttl{font-family:var(--font-m);font-size:10px;color:var(--muted);margin-left:8px;letter-spacing:.1em;}
-.term-body{padding:22px 26px;font-family:var(--font-m);font-size:12px;line-height:1.9;min-height:300px;max-height:380px;overflow-y:auto;}
-.tl{display:block;}
-.tp{color:var(--gold)}.tc{color:var(--text)}.to{color:var(--muted)}.tv{color:#ffaa44}.tg{color:var(--teal)}.tb{color:var(--red)}.ti{color:var(--blue2)}
-.tcursor{display:inline-block;width:7px;height:13px;background:var(--gold);animation:blink 1s step-end infinite;vertical-align:middle;box-shadow:0 0 5px var(--gold);}
-
-/* Impact */
-.impact-section{padding:100px 52px;border-top:1px solid var(--border);background:var(--surface);text-align:center;position:relative;overflow:hidden;}
-.impact-bg{font-family:var(--font-d);font-size:clamp(60px,14vw,180px);font-weight:900;color:var(--gold);opacity:.04;position:absolute;left:50%;transform:translateX(-50%);top:30px;pointer-events:none;white-space:nowrap;letter-spacing:-.02em;}
-.impact-inner{position:relative;z-index:2;}
-.impact-q{font-family:var(--font-d);font-size:clamp(18px,3.2vw,42px);font-weight:700;letter-spacing:-.01em;max-width:740px;margin:0 auto;line-height:1.25;}
-.impact-q .gold{color:var(--gold);text-shadow:0 0 30px var(--gold-glow);}
-.impact-q .blue-t{color:var(--blue);}
-.impact-sub{margin-top:18px;font-family:var(--font-m);font-size:10px;color:var(--muted);letter-spacing:.14em;}
-.impact-stats{margin-top:48px;display:flex;gap:56px;justify-content:center;flex-wrap:wrap;}
-.is-n{font-family:var(--font-d);font-size:36px;font-weight:800;color:var(--gold);text-shadow:0 0 20px var(--gold-glow);}
-.is-l{font-family:var(--font-m);font-size:9px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;margin-top:4px;}
-
-/* ML Demo CTA */
-.ml-cta-section{padding:120px 52px;border-top:1px solid var(--border);text-align:center;position:relative;overflow:hidden;}
-.cta-glow{position:absolute;width:600px;height:600px;background:radial-gradient(circle,rgba(200,168,75,.07) 0%,transparent 70%);left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;animation:ctaP 5s ease-in-out infinite;}
-@keyframes ctaP{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.1)}}
-.cta-title{font-family:var(--font-d);font-size:clamp(36px,7vw,88px);font-weight:900;letter-spacing:-.02em;line-height:.95;position:relative;}
-.cta-title .outline{-webkit-text-stroke:1.5px var(--gold);color:transparent;}
-.cta-title .solid{color:var(--gold);}
-.cta-sub{margin-top:22px;font-family:var(--font-m);font-size:11px;letter-spacing:.06em;color:var(--muted);position:relative;}
-.cta-btns{margin-top:36px;display:flex;gap:14px;justify-content:center;position:relative;}
-
-/* Team */
-.team-section{padding:100px 52px;border-top:1px solid var(--border);}
-.team-grid{margin-top:48px;display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);border:1px solid var(--border);}
-.team-card{background:var(--bg);padding:36px 28px;cursor:none;transition:background .3s;position:relative;overflow:hidden;}
-.team-card:hover{background:var(--surface);}
-.team-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent);transform:scaleX(0);transform-origin:left;transition:transform .5s;}
-.team-card:hover::before{transform:scaleX(1);}
-.team-ico{font-size:26px;margin-bottom:18px;display:block;}
-.team-role{font-family:var(--font-m);font-size:9px;letter-spacing:.16em;color:var(--gold);text-transform:uppercase;margin-bottom:8px;}
-.team-name{font-family:var(--font-d);font-size:16px;font-weight:700;margin-bottom:10px;letter-spacing:.04em;}
-.team-body{font-size:.85rem;color:var(--muted);line-height:1.6;}
-
-/* Footer */
-footer{border-top:1px solid var(--border);padding:32px 52px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;position:relative;z-index:2;}
-.f-logo{font-family:var(--font-d);font-size:18px;font-weight:800;color:var(--gold);letter-spacing:.08em;}
-.f-c{font-family:var(--font-m);font-size:9px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;text-align:center;}
-.f-r{text-align:right;font-family:var(--font-m);font-size:9px;color:var(--muted);letter-spacing:.06em;}
-
-/* ═══════════════════════════════════════════════════════════════
-   DASHBOARD PAGE (hidden until CTA clicked)
-═══════════════════════════════════════════════════════════════ */
-#dashboard{
-  display:none; position:relative; z-index:1;
-  min-height:100vh;
-}
-#dashboard.active{display:block;}
-
-/* Transition overlay */
-#transition-overlay{
-  position:fixed;inset:0;z-index:9990;
-  background:var(--bg);
-  display:flex;align-items:center;justify-content:center;
-  opacity:0;pointer-events:none;transition:opacity .4s;
-}
-#transition-overlay.active{opacity:1;pointer-events:all;}
-.tov-text{font-family:var(--font-d);font-size:1.2rem;letter-spacing:.3em;color:var(--gold);text-shadow:0 0 20px var(--gold-glow);}
-
-/* Dashboard shell */
-.dash-shell{max-width:1400px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:12px;}
-.dash-header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);padding:20px 0 14px;}
-.dash-logo{font-family:var(--font-d);font-size:1.1rem;font-weight:900;letter-spacing:.1em;color:var(--gold);text-shadow:0 0 16px var(--gold-glow);display:flex;align-items:center;gap:10px;}
-.dash-logo-sub{font-size:.5rem;color:var(--muted);letter-spacing:.3em;display:block;margin-top:2px;}
-.dash-status{font-family:var(--font-m);font-size:.62rem;padding:4px 10px;border-radius:2px;border:1px solid var(--gold);color:var(--gold);letter-spacing:.2em;animation:pulse-border 2s infinite;}
-.dash-back{font-family:var(--font-m);font-size:.62rem;letter-spacing:.12em;padding:6px 16px;border:1px solid var(--border-b);color:var(--muted);background:transparent;cursor:none;transition:.2s;}
-.dash-back:hover{color:var(--gold);border-color:var(--gold);}
-
-/* Dashboard grid */
-.dash-grid{display:grid;grid-template-columns:310px 1fr 270px;gap:12px;}
-
-/* Card (gold theme) */
-.dcard{background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:16px;position:relative;overflow:hidden;}
-.dcard::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent);opacity:.5;}
-.dcard-title{font-family:var(--font-m);font-size:.62rem;letter-spacing:.3em;color:var(--gold);margin-bottom:14px;display:flex;align-items:center;gap:6px;}
-.dcard-title::before{content:'//';opacity:.4;}
-
-/* Threat ring */
-.threat-ring-wrap{position:relative;width:160px;height:160px;margin:0 auto 12px;}
-#d-threat-ring{transform:rotate(-90deg);}
-.threat-ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
-.threat-num{font-family:var(--font-d);font-size:2.6rem;font-weight:900;line-height:1;}
-.threat-sub{font-family:var(--font-m);font-size:.58rem;letter-spacing:.25em;color:var(--muted);}
-.threat-badge{display:inline-block;padding:5px 18px;font-family:var(--font-d);font-size:.85rem;font-weight:700;letter-spacing:.2em;border-radius:2px;border:1px solid;transition:.4s;margin-top:4px;}
-.tl-LOW{color:var(--teal);border-color:var(--teal);background:rgba(0,212,170,.08);text-shadow:0 0 10px var(--teal);}
-.tl-MEDIUM{color:var(--amber);border-color:var(--amber);background:rgba(255,170,0,.08);text-shadow:0 0 10px var(--amber);}
-.tl-HIGH{color:var(--red);border-color:var(--red);background:rgba(255,68,68,.08);text-shadow:0 0 10px var(--red);animation:blink-red 1s infinite;}
-
-/* Stat row */
-.stat-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:.82rem;}
-.stat-row:last-child{border-bottom:none;}
-.stat-lbl{color:var(--muted);font-family:var(--font-m);font-size:.62rem;letter-spacing:.12em;}
-.stat-val{font-family:var(--font-m);font-weight:600;}
-
-/* Sliders */
-.slider-group{display:flex;flex-direction:column;gap:9px;margin-bottom:14px;}
-.slider-item{display:flex;flex-direction:column;gap:3px;}
-.slider-hdr{display:flex;justify-content:space-between;font-size:.68rem;}
-.slider-name{font-family:var(--font-m);color:var(--muted);letter-spacing:.08em;font-size:.6rem;}
-.slider-val{font-family:var(--font-m);color:var(--gold);}
-input[type=range]{-webkit-appearance:none;width:100%;height:3px;background:linear-gradient(90deg,var(--gold) var(--pct,50%),rgba(255,255,255,0.08) var(--pct,50%));border-radius:2px;cursor:none;outline:none;}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;background:var(--gold);border-radius:50%;box-shadow:0 0 8px var(--gold-glow);}
-
-/* Attack toggle */
-.toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
-.toggle-lbl{font-family:var(--font-m);font-size:.68rem;letter-spacing:.18em;}
-.toggle-wrap{position:relative;width:52px;height:26px;}
-.toggle-wrap input{opacity:0;width:0;height:0;}
-.t-slider{position:absolute;inset:0;border-radius:13px;background:var(--surface2);border:1px solid var(--border);cursor:none;transition:.3s;}
-.t-slider::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--muted2);transition:.3s;}
-.toggle-wrap input:checked+.t-slider{background:rgba(255,68,68,.2);border-color:var(--red);}
-.toggle-wrap input:checked+.t-slider::after{transform:translateX(26px);background:var(--red);box-shadow:0 0 10px var(--red);}
-.atk-badge{font-family:var(--font-m);font-size:.58rem;padding:2px 8px;border-radius:2px;border:1px solid;transition:.3s;}
-.atk-off{color:var(--teal);border-color:var(--teal);}
-.atk-on{color:var(--red);border-color:var(--red);animation:blink-red 1s infinite;}
-.atk-warn{background:rgba(255,68,68,.07);border:1px solid rgba(255,68,68,.3);border-radius:2px;padding:6px 10px;font-family:var(--font-m);font-size:.58rem;color:var(--red);display:none;margin-bottom:10px;letter-spacing:.08em;}
-.atk-warn.vis{display:block;}
-
-/* Run button */
-.btn-run{width:100%;padding:13px;font-family:var(--font-d);font-size:.82rem;font-weight:700;letter-spacing:.2em;color:#03070f;background:var(--gold);border:none;border-radius:2px;cursor:none;box-shadow:0 0 18px var(--gold-glow);transition:.2s;position:relative;overflow:hidden;}
-.btn-run:hover{background:var(--gold2);box-shadow:0 0 30px rgba(200,168,75,.6);}
-.btn-run:active{transform:scale(.98);}
-.btn-run.running{pointer-events:none;opacity:.7;}
-.btn-run.running::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.3),transparent);animation:shimmer 1s infinite;}
-
-/* Pipeline */
-.pipeline{display:flex;flex-direction:column;gap:5px;}
-.pipe-step{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:2px;border:1px solid var(--border);background:var(--surface2);transition:.35s;font-family:var(--font-m);font-size:.68rem;}
-.pipe-step.active{border-color:var(--gold);background:rgba(200,168,75,.07);box-shadow:0 0 10px rgba(200,168,75,.12);}
-.pipe-step.pass{border-color:var(--teal);background:rgba(0,212,170,.06);}
-.pipe-step.fail{border-color:var(--red);background:rgba(255,68,68,.06);}
-.pipe-step.warn{border-color:var(--amber);background:rgba(255,170,0,.06);}
-.pipe-dot{width:7px;height:7px;border-radius:50%;background:var(--muted2);flex-shrink:0;transition:.35s;}
-.pipe-step.active .pipe-dot{background:var(--gold);box-shadow:0 0 8px var(--gold);animation:dot-pulse .6s infinite;}
-.pipe-step.pass  .pipe-dot{background:var(--teal);box-shadow:0 0 8px var(--teal);}
-.pipe-step.fail  .pipe-dot{background:var(--red);  box-shadow:0 0 8px var(--red);}
-.pipe-step.warn  .pipe-dot{background:var(--amber);box-shadow:0 0 8px var(--amber);}
-.pipe-name{flex:1;color:var(--text);}
-.pipe-st{font-size:.58rem;letter-spacing:.12em;color:var(--muted);}
-.pipe-ms{font-size:.58rem;color:var(--muted);}
-.pipe-connector{width:1px;height:8px;background:var(--border);margin-left:13px;}
-
-/* Confidence bar */
-.conf-wrap{margin:8px 0;}
-.conf-hdr{display:flex;justify-content:space-between;font-family:var(--font-m);font-size:.62rem;margin-bottom:4px;}
-.conf-outer{height:10px;background:rgba(255,255,255,.05);border-radius:5px;overflow:hidden;}
-.conf-inner{height:100%;background:linear-gradient(90deg,#a07830,var(--gold));border-radius:5px;transition:width .6s cubic-bezier(.4,0,.2,1);box-shadow:0 0 8px var(--gold-glow);}
-
-/* Anomaly glow */
-.anom-ring{display:inline-block;width:13px;height:13px;border-radius:50%;border:2px solid;margin-right:6px;transition:.4s;}
-.glow-clean{border-color:var(--teal);box-shadow:0 0 10px var(--teal);background:rgba(0,212,170,.2);}
-.glow-anomaly{border-color:var(--red);box-shadow:0 0 10px var(--red);background:rgba(255,68,68,.2);animation:blink-red .8s infinite;}
-
-/* Vote grid */
-.vote-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-top:7px;}
-.vote-cell{text-align:center;padding:7px 3px;border:1px solid var(--border);border-radius:2px;background:var(--surface2);transition:.35s;}
-.vote-cell.flagged{border-color:var(--red);background:rgba(255,68,68,.1);}
-.vote-cell.clean{border-color:var(--teal);background:rgba(0,212,170,.07);}
-.vote-icon{font-size:1rem;display:block;margin-bottom:2px;}
-.vote-name{font-family:var(--font-m);font-size:.5rem;color:var(--muted);letter-spacing:.08em;}
-
-/* History */
-.hist-wrap{display:flex;flex-direction:column;gap:3px;max-height:170px;overflow-y:auto;}
-.hist-item{display:flex;align-items:center;gap:7px;padding:5px 8px;border:1px solid var(--border);border-radius:2px;font-family:var(--font-m);font-size:.58rem;background:var(--surface2);}
-.hi-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
-.hi-time{color:var(--muted);}
-.hi-pred{color:var(--gold);}
-.hi-conf{color:var(--text);}
-.hi-threat{font-weight:700;}
-.hi-anom{color:var(--red);margin-left:auto;}
-
-/* Radar */
-#d-radar{display:block;margin:0 auto;}
-
-/* Log panel */
-.log-panel{background:#020406;border:1px solid var(--border);border-radius:2px;height:195px;overflow-y:auto;padding:8px;font-family:var(--font-m);font-size:.6rem;}
-.log-panel::-webkit-scrollbar{width:3px;}
-.log-panel::-webkit-scrollbar-thumb{background:var(--border);}
-.log-entry{display:flex;gap:8px;padding:2px 0;border-bottom:1px solid rgba(255,255,255,.02);}
-.log-ts{color:var(--muted);flex-shrink:0;}
-.log-step{color:var(--gold);flex-shrink:0;min-width:125px;}
-.log-msg{color:var(--text);}
-.log-PASS,.log-CLEAN,.log-LOW{color:var(--teal)!important;}
-.log-FAIL,.log-ANOMALY,.log-HIGH,.log-INJECTED{color:var(--red)!important;}
-.log-MEDIUM,.log-WARN{color:var(--amber)!important;}
-
-/* Result */
-.result-big{text-align:center;padding:10px 0;}
-.result-val{font-family:var(--font-d);font-size:1.8rem;font-weight:900;line-height:1;transition:.4s;}
-.result-cap{font-family:var(--font-m);font-size:.58rem;color:var(--muted);letter-spacing:.3em;margin-top:4px;}
-.result-label{font-family:var(--font-d);font-size:1.3rem;font-weight:800;letter-spacing:.08em;margin-top:4px;}
-
-/* Dataset badge */
-.ds-badge{font-family:var(--font-m);font-size:.55rem;padding:3px 8px;border:1px solid rgba(26,143,255,.3);color:var(--blue2);letter-spacing:.1em;display:inline-block;margin-bottom:10px;}
-
-/* Row helpers */
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-.muted{color:var(--muted);font-size:.75rem;}
-.divider{border:none;border-top:1px solid var(--border);margin:8px 0;}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Antidote AI — Adversarially Robust AI Security Middleware that protects against poisoning and evasion attacks.">
+    <title>ANTIDOTE AI — Adversarially Robust Security</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="cur"></div>
-<div id="cur-ring"></div>
-<canvas id="three-canvas"></canvas>
 
-<!-- ═══════════════════════════════════════════════════════════════
-     TRANSITION OVERLAY
-═══════════════════════════════════════════════════════════════ -->
-<div id="transition-overlay">
-  <div class="tov-text" id="tov-msg">INITIALIZING DEFENSE PIPELINE...</div>
+<!-- ═══════════════════════════════════════════════════════
+     GEOMETRIC TOP BAR
+     ═══════════════════════════════════════════════════════ -->
+<div class="geo-bar">
+    <div class="geo-bar__red"></div>
+    <div class="geo-bar__blue"></div>
+    <div class="geo-bar__yellow"></div>
+    <div class="geo-bar__black"></div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════════
-     LANDING PAGE
-═══════════════════════════════════════════════════════════════ -->
-<div id="landing">
-<nav>
-  <div class="nav-logo"><div class="nav-dot"></div>ANTIDOTE</div>
-  <ul class="nav-links">
-    <li><a href="#threats">Threats</a></li>
-    <li><a href="#solution">Defense</a></li>
-    <li><a href="#terminal">Terminal</a></li>
-    <li><a href="#ml-cta">ML Demo</a></li>
-    <li><a href="#team">Team</a></li>
-  </ul>
-  <button class="nav-cta" onclick="launchDashboard()">Deploy Shield</button>
-</nav>
-
-<main>
-<!-- HERO -->
-<section class="hero">
-  <div class="hero-badge"><div class="badge-dot"></div>Adversarial AI Defense System — v2.0</div>
-  <h1 class="hero-title">
-    <span class="outline">NO</span><br/>
-    <span class="solid">MODEL</span><br/>
-    <span class="blue">BREAKS.</span>
-  </h1>
-  <p class="hero-sub">ANTIDOTE is a six-layer adversarial defense framework — blocking evasion attacks, poisoning attempts, and backdoor exploits before they reach your model.</p>
-  <div class="hero-actions">
-    <button class="btn-p" onclick="launchDashboard()">Launch Firewall Dashboard →</button>
-    <button class="btn-g">Read the Paper</button>
-  </div>
-  <div class="hero-stats">
-    <div><div class="hs-n">98.7%</div><div class="hs-l">Attack detection rate</div></div>
-    <div><div class="hs-n">&lt;2ms</div><div class="hs-l">Runtime latency</div></div>
-    <div><div class="hs-n">6</div><div class="hs-l">Defense layers</div></div>
-  </div>
-  <div class="hero-hud">
-    <svg width="280" height="280" viewBox="0 0 280 280" fill="none">
-      <defs>
-        <filter id="hg"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-        <filter id="hg2"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-        <linearGradient id="ag" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#c8a84b"/><stop offset="100%" stop-color="#1a8fff"/></linearGradient>
-      </defs>
-      <circle cx="140" cy="140" r="130" stroke="rgba(200,168,75,0.06)" stroke-width=".8"/>
-      <circle cx="140" cy="140" r="118" stroke="rgba(200,168,75,0.09)" stroke-width=".8"/>
-      <circle cx="140" cy="140" r="106" stroke="rgba(26,143,255,0.06)" stroke-width=".8" stroke-dasharray="3 7"/>
-      <circle class="hud-ring-a" cx="140" cy="140" r="124" stroke="rgba(200,168,75,0.18)" stroke-width=".8" stroke-dasharray="6 20"/>
-      <circle class="hud-ring-b" cx="140" cy="140" r="100" stroke="rgba(26,143,255,0.2)" stroke-width=".6" stroke-dasharray="3 12"/>
-      <circle cx="140" cy="140" r="118" stroke="url(#ag)" stroke-width="3" stroke-dasharray="742" stroke-dashoffset="82" stroke-linecap="round" transform="rotate(-90 140 140)" filter="url(#hg)"/>
-      <text x="140" y="126" text-anchor="middle" font-size="50" font-weight="900" fill="#c8a84b" filter="url(#hg2)" font-family="Orbitron,monospace">98</text>
-      <text x="140" y="148" text-anchor="middle" font-size="10" fill="rgba(200,168,75,0.45)" letter-spacing="3" font-family="Share Tech Mono,monospace">/ 100</text>
-      <text x="140" y="166" text-anchor="middle" font-size="7" fill="#c8a84b" letter-spacing="5" opacity=".55" font-family="Share Tech Mono,monospace">DEFENSE SCORE</text>
-      <circle cx="104" cy="190" r="2.5" fill="#00d4aa" filter="url(#hg)"/>
-      <text x="112" y="195" font-size="8" fill="#3a5070" letter-spacing=".04em" font-family="Share Tech Mono,monospace">Evasion blocked</text>
-      <circle cx="104" cy="207" r="2.5" fill="#1a8fff" filter="url(#hg)"/>
-      <text x="112" y="212" font-size="8" fill="#3a5070" letter-spacing=".04em" font-family="Share Tech Mono,monospace">Poison detected</text>
-      <line class="hud-blink" x1="58" y1="140" x2="222" y2="140" stroke="rgba(200,168,75,0.12)" stroke-width=".5"/>
-      <line class="hud-blink" x1="140" y1="58" x2="140" y2="222" stroke="rgba(200,168,75,0.12)" stroke-width=".5"/>
-    </svg>
-  </div>
-</section>
-
-<!-- THREATS -->
-<section id="threats" class="threat-section">
-  <div>
-    <div class="sl reveal">Attack Landscape</div>
-    <h2 class="st reveal rd1">Every attack.<br/>One shield.</h2>
-    <p class="threat-desc reveal rd2">Modern ML models shatter under carefully crafted inputs. ANTIDOTE stops evasion, poisoning, and backdoor exploits before they reach your model.</p>
-    <div class="threat-tags reveal rd3">
-      <span class="tag">Evasion 45%</span><span class="tag">Poisoning 35%</span><span class="tag">Backdoor 15%</span><span class="tag">Extraction 5%</span>
+<!-- ═══════════════════════════════════════════════════════
+     SECTION 1 — HERO
+     ═══════════════════════════════════════════════════════ -->
+<section class="hero" id="hero">
+    <div class="hero__shapes">
+        <div class="shape shape--circle-red"></div>
+        <div class="shape shape--rect-blue"></div>
+        <div class="shape shape--circle-yellow"></div>
+        <div class="shape shape--rect-yellow"></div>
+        <div class="shape shape--circle-blue-sm"></div>
+        <div class="shape shape--line-h"></div>
+        <div class="shape shape--line-v"></div>
+        <div class="shape shape--rect-red-sm"></div>
     </div>
-  </div>
-  <div class="threat-panel reveal rd2">
-    <div class="tr"><div class="tr-ico">⚡</div><div class="tr-name"><div class="tr-n1">PGD Evasion</div><div class="tr-n2">Projected gradient descent · L∞ perturbation</div></div><div class="tr-bar"><div class="tr-fill" data-w="94" style="background:var(--teal);box-shadow:0 0 6px rgba(0,212,170,.5)"></div></div><div class="tr-pct" style="color:var(--teal)">94%</div><div class="tr-badge" style="background:rgba(0,212,170,.08);color:var(--teal)">BLOCKED</div></div>
-    <div class="tr"><div class="tr-ico">☠</div><div class="tr-name"><div class="tr-n1">Data Poisoning</div><div class="tr-n2">Label flip · Gradient-aligned injection</div></div><div class="tr-bar"><div class="tr-fill" data-w="98" style="background:var(--teal);box-shadow:0 0 6px rgba(0,212,170,.5)"></div></div><div class="tr-pct" style="color:var(--teal)">98%</div><div class="tr-badge" style="background:rgba(0,212,170,.08);color:var(--teal)">BLOCKED</div></div>
-    <div class="tr"><div class="tr-ico">🔒</div><div class="tr-name"><div class="tr-n1">Backdoor Trigger</div><div class="tr-n2">BadNets · Blended injection</div></div><div class="tr-bar"><div class="tr-fill" data-w="91" style="background:#ffaa44"></div></div><div class="tr-pct" style="color:#ffaa44">91%</div><div class="tr-badge" style="background:rgba(255,170,68,.08);color:#ffaa44">BLOCKED</div></div>
-    <div class="tr"><div class="tr-ico">👁</div><div class="tr-name"><div class="tr-n1">FGSM Attack</div><div class="tr-n2">Fast gradient sign · Single-step adversarial</div></div><div class="tr-bar"><div class="tr-fill" data-w="99" style="background:var(--teal)"></div></div><div class="tr-pct" style="color:var(--teal)">99%</div><div class="tr-badge" style="background:rgba(0,212,170,.08);color:var(--teal)">BLOCKED</div></div>
-    <div class="tr"><div class="tr-ico">🕵</div><div class="tr-name"><div class="tr-n1">Model Extraction</div><div class="tr-n2">Black-box query · Surrogate cloning</div></div><div class="tr-bar"><div class="tr-fill" data-w="78" style="background:var(--blue2)"></div></div><div class="tr-pct" style="color:var(--blue2)">78%</div><div class="tr-badge" style="background:rgba(95,184,255,.08);color:var(--blue2)">PARTIAL</div></div>
-    <canvas id="waveform" height="52"></canvas>
-  </div>
-</section>
 
-<!-- METRICS -->
-<section id="solution" class="metrics-section">
-  <div class="metrics-header">
-    <div><div class="sl reveal">Defense Stack</div><h2 class="st reveal rd1">Six pillars<br/>of robustness.</h2></div>
-    <p class="reveal rd2" style="font-size:.95rem;color:var(--muted);line-height:1.75">Every perturbation, every poisoned sample, every backdoor trigger — detected, neutralized, logged. ANTIDOTE makes robustness quantifiable.</p>
-  </div>
-  <div class="metrics-grid">
-    <div class="mc reveal"><div class="mc-i">🛡</div><div class="mc-n" data-target="98">0</div><div class="mc-u">% poisoning blocked</div><div class="mc-l">Data Shield</div><div class="mc-d">Statistical outlier detection and cryptographic provenance tracking quarantines poisoned samples before training begins.</div></div>
-    <div class="mc reveal rd1"><div class="mc-i">⚔</div><div class="mc-n" data-target="94">0</div><div class="mc-u">% evasion blocked</div><div class="mc-l">Adversarial Training</div><div class="mc-d">Min-max robust optimization using PGD-7 and FGSM augmentation. The model trains against attacks and learns to resist them intrinsically.</div></div>
-    <div class="mc reveal rd2"><div class="mc-i">✓</div><div class="mc-n" data-target="89">0</div><div class="mc-u">% formally certified</div><div class="mc-l">Certified Defense</div><div class="mc-d">Randomized smoothing gives mathematical guarantees: within a verified ε-ball, the prediction is provably unchanged.</div></div>
-    <div class="mc reveal rd3"><div class="mc-i">🔬</div><div class="mc-n" data-target="96">0</div><div class="mc-u">% perturbation removed</div><div class="mc-l">Input Purification</div><div class="mc-d">Diffusion-based denoising strips adversarial noise before inputs reach the inference engine.</div></div>
-    <div class="mc reveal"><div class="mc-i">👁</div><div class="mc-n" data-target="2">0</div><div class="mc-u">ms average detection</div><div class="mc-l">Runtime Detection</div><div class="mc-d">Feature-space anomaly scoring flags suspicious inputs at inference time in under 2ms.</div></div>
-    <div class="mc reveal rd1"><div class="mc-i">📋</div><div class="mc-n" data-target="100">0</div><div class="mc-u">% pipeline coverage</div><div class="mc-l">Audit Trail</div><div class="mc-d">SHA-256 hashes trace every sample, model version, and inference decision — tamper-evident and verifiable.</div></div>
-  </div>
-</section>
-
-<!-- 3D CARDS -->
-<section class="cards-section">
-  <div class="sl reveal">Built Different</div>
-  <h2 class="st reveal rd1">Why ANTIDOTE<br/><span style="color:var(--gold)">stands apart.</span></h2>
-  <div class="cards-grid">
-    <div class="c3d reveal"><span class="c3d-i">🧬</span><div class="c3d-t">Plug & Play</div><div class="c3d-h">Model-agnostic wrapper</div><div class="c3d-b">Wraps any sklearn, PyTorch or TensorFlow model. No retraining required. Deploy in minutes.</div></div>
-    <div class="c3d reveal rd1"><span class="c3d-i">🔐</span><div class="c3d-t">Certified</div><div class="c3d-h">Mathematically proven robustness</div><div class="c3d-b">Randomized smoothing provides formal certificates — within a verified ε-ball, classification is mathematically guaranteed.</div></div>
-    <div class="c3d reveal rd2"><span class="c3d-i">⚡</span><div class="c3d-t">Zero Overhead</div><div class="c3d-h">Real-time, &lt;2ms latency</div><div class="c3d-b">Anomaly detection and purification run in parallel. Under 2ms of added latency — imperceptible in production.</div></div>
-  </div>
-</section>
-
-<!-- HOW IT WORKS -->
-<section class="how-section">
-  <div class="sl reveal">How It Works</div>
-  <h2 class="st reveal rd1" style="max-width:480px">Layered defense.<br/>Real protection.</h2>
-  <div class="how-list">
-    <div class="how-item reveal"><div class="how-num">01</div><div><div class="how-title">Data <span>Poisoning Shield</span></div><span class="how-tag">Train-Time</span></div><div class="how-body">Before a single sample reaches the model, ANTIDOTE's statistical outlier engine scores each data point. Anomalous data is quarantined — silent, automatic, tamper-evident.</div></div>
-    <div class="how-item reveal"><div class="how-num">02</div><div><div class="how-title">Adversarial <span>Hardening</span></div><span class="how-tag">Train-Time</span></div><div class="how-body">Min-max robust optimization — the model learns to classify correctly even when an adversary actively tries to fool it. PGD-7 and FGSM augmentation cover every worst-case input.</div></div>
-    <div class="how-item reveal"><div class="how-num">03</div><div><div class="how-title">Input <span>Purification</span></div><span class="how-tag">Inference-Time</span></div><div class="how-body">A denoiser strips adversarial perturbations before they reach the classifier. Feature squeezing reduces attack surface further. What arrives at your model is always clean.</div></div>
-    <div class="how-item reveal"><div class="how-num">04</div><div><div class="how-title">Runtime <span>Anomaly Detection</span></div><span class="how-tag">Inference-Time</span></div><div class="how-body">A three-detector ensemble (IsolationForest + OneClassSVM + Z-score) scores every input. Suspicious inputs are flagged, rejected, or queued for review. Thresholds adapt dynamically.</div></div>
-  </div>
-</section>
-
-<!-- TERMINAL -->
-<section id="terminal" class="term-section">
-  <div class="sl reveal">Live Demo</div>
-  <h2 class="st reveal rd1">Watch it <span style="color:var(--gold)">defend.</span></h2>
-  <div class="term-wrap reveal rd2">
-    <div class="term-hdr">
-      <div class="td" style="background:#ff5f56"></div><div class="td" style="background:#ffbd2e"></div><div class="td" style="background:#27c93f"></div>
-      <div class="term-ttl">antidote-cli — breast cancer defense analysis</div>
+    <div class="hero__content">
+        <h1 class="hero__title">
+            <span>ANTI</span><span>DOTE</span> <span>AI</span>
+        </h1>
+        <p class="hero__subtitle">Adversarially Robust AI Security Middleware</p>
+        <div class="hero__badge">■ Poisoning Defense &nbsp;·&nbsp; ▲ Evasion Detection &nbsp;·&nbsp; ● Ensemble Verdict</div>
     </div>
-    <div class="term-body" id="term-out"></div>
-  </div>
-</section>
 
-<!-- IMPACT -->
-<section class="impact-section">
-  <div class="impact-bg">ANTIDOTE</div>
-  <div class="impact-inner">
-    <div class="sl reveal" style="justify-content:center">The Stakes</div>
-    <h2 class="impact-q reveal rd1">A model that can be <span class="gold">fooled</span> is a model that cannot be <span class="blue-t">trusted.</span></h2>
-    <p class="impact-sub reveal rd2">— the mission of ANTIDOTE</p>
-    <div class="impact-stats reveal rd3">
-      <div><div class="is-n">$6T</div><div class="is-l">Cybercrime cost by 2025</div></div>
-      <div><div class="is-n">73%</div><div class="is-l">AI systems vulnerable to evasion</div></div>
-      <div><div class="is-n">0-day</div><div class="is-l">ANTIDOTE threat response</div></div>
+    <div class="hero__scroll" onclick="document.getElementById('upload-section').scrollIntoView({behavior:'smooth'})">
+        <span>Scroll</span>
+        <div class="hero__scroll-line"></div>
     </div>
-  </div>
 </section>
 
-<!-- ML DEMO CTA -->
-<section id="ml-cta" class="ml-cta-section">
-  <div class="cta-glow"></div>
-  <div class="sl reveal" style="justify-content:center">Interactive Defense</div>
-  <h2 class="cta-title reveal rd1">Your model<br/>deserves an <span class="solid">antidote</span>.</h2>
-  <p class="cta-sub reveal rd2">Run the live AI Firewall Dashboard — real Breast Cancer dataset, real RandomForest, real defense pipeline.</p>
-  <div class="cta-btns reveal rd3">
-    <button class="btn-p" onclick="launchDashboard()">⚡ Launch Firewall Dashboard →</button>
-    <button class="btn-g">View on GitHub</button>
-  </div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SECTION 2 — DATASET UPLOAD
+     ═══════════════════════════════════════════════════════ -->
+<section class="section" id="upload-section">
+    <div class="container">
+        <div class="section__header">
+            <span class="section__number">01 — TRAINING PHASE</span>
+            <h2 class="section__title">Dataset Upload</h2>
+            <p class="section__subtitle">Upload a CSV file. Poisoned rows will be detected and removed automatically.</p>
+        </div>
+
+        <div class="card" id="upload-card">
+            <div class="card__title">
+                <span class="card__icon card__icon--red">▲</span>
+                Upload Dataset
+            </div>
+
+            <div class="upload-zone" id="upload-zone">
+                <span class="upload-zone__icon">⬆</span>
+                <div class="upload-zone__text">Drop CSV Here or Click to Browse</div>
+                <div class="upload-zone__hint">Only .csv files supported</div>
+                <input type="file" id="file-input" accept=".csv">
+            </div>
+
+            <div id="upload-spinner" class="spinner" style="margin-top:20px;"></div>
+
+            <div class="stats-row" id="upload-stats" style="display:none;">
+                <div class="stat-card stat-card--blue">
+                    <div class="stat-card__value" id="stat-total">—</div>
+                    <div class="stat-card__label">Total Rows</div>
+                </div>
+                <div class="stat-card stat-card--red">
+                    <div class="stat-card__value" id="stat-suspicious">—</div>
+                    <div class="stat-card__label">Suspicious Rows</div>
+                </div>
+                <div class="stat-card stat-card--green">
+                    <div class="stat-card__value" id="stat-cleaned">—</div>
+                    <div class="stat-card__label">Cleaned Rows</div>
+                </div>
+            </div>
+        </div>
+    </div>
 </section>
 
-<!-- TEAM -->
-<section id="team" class="team-section">
-  <div class="sl reveal">The Team</div>
-  <h2 class="st reveal rd1">Engineers who<br/><span style="color:var(--gold)">think like attackers.</span></h2>
-  <div class="team-grid reveal rd2">
-    <div class="team-card"><span class="team-ico">💻</span><div class="team-role">Full-Stack & Systems</div><div class="team-name">Your Name</div><div class="team-body">Responsible for the ANTIDOTE runtime defense layer, this website, and the full-stack infrastructure. Architected the six-layer defense pipeline.</div></div>
-    <div class="team-card"><span class="team-ico">🤖</span><div class="team-role" style="color:var(--blue2)">ML Research & Model</div><div class="team-name">Teammate's Name</div><div class="team-body">Built and trained the adversarially robust classifier using PGD-based adversarial training and randomized smoothing for certified defense.</div></div>
-  </div>
+
+<!-- DIVIDER -->
+<div class="container">
+    <div class="geo-divider">
+        <div class="geo-divider__line"></div>
+        <div class="geo-divider__dot"></div>
+        <div class="geo-divider__dot geo-divider__dot--blue"></div>
+        <div class="geo-divider__dot geo-divider__dot--yellow"></div>
+        <div class="geo-divider__line"></div>
+    </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     SECTION 3 — TRAIN MODEL
+     ═══════════════════════════════════════════════════════ -->
+<section class="section" id="train-section">
+    <div class="container">
+        <div class="section__header">
+            <span class="section__number">02 — MODEL TRAINING</span>
+            <h2 class="section__title">Train Base Model</h2>
+            <p class="section__subtitle">Train a RandomForestClassifier on the cleaned dataset.</p>
+        </div>
+
+        <div class="card card--yellow">
+            <div class="card__title">
+                <span class="card__icon card__icon--blue">●</span>
+                Model Training
+            </div>
+
+            <div class="train-area">
+                <button class="btn btn--blue" id="train-btn" disabled>
+                    ▶ Train Model
+                </button>
+                <div id="train-spinner" class="spinner"></div>
+                <div class="train-status" id="train-status">
+                    Waiting for dataset upload…
+                </div>
+            </div>
+
+            <div class="stats-row" id="train-stats" style="display:none; margin-top:28px;">
+                <div class="stat-card stat-card--blue">
+                    <div class="stat-card__value" id="stat-accuracy">—</div>
+                    <div class="stat-card__label">Accuracy</div>
+                </div>
+                <div class="stat-card stat-card--yellow">
+                    <div class="stat-card__value" id="stat-samples">—</div>
+                    <div class="stat-card__label">Training Samples</div>
+                </div>
+                <div class="stat-card stat-card--blue">
+                    <div class="stat-card__value" id="stat-features">—</div>
+                    <div class="stat-card__label">Features</div>
+                </div>
+            </div>
+        </div>
+    </div>
 </section>
 
-<footer>
-  <div class="f-logo">ANTIDOTE</div>
-  <div class="f-c">Adversarially Robust AI — Hackathon 2025</div>
-  <div class="f-r">Evasion · Poison · Backdoor · Certified</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SECTION 4 — INFERENCE INPUT
+     ═══════════════════════════════════════════════════════ -->
+<section class="section section--dark" id="inference-section">
+    <div class="container">
+        <div class="section__header">
+            <span class="section__number">03 — INFERENCE PHASE</span>
+            <h2 class="section__title">Run Defense Pipeline</h2>
+            <p class="section__subtitle">Enter feature values. The system will validate, detect evasion, predict, and issue a verdict.</p>
+        </div>
+
+        <div class="inference-grid">
+            <div class="card" id="inference-card">
+                <div class="card__title">
+                    <span class="card__icon card__icon--yellow">■</span>
+                    Input Features
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="input-f1">Feature 1</label>
+                    <input class="form-input" id="input-f1" type="number" step="any" placeholder="e.g. 5.1">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="input-f2">Feature 2</label>
+                    <input class="form-input" id="input-f2" type="number" step="any" placeholder="e.g. 3.5">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="input-f3">Feature 3</label>
+                    <input class="form-input" id="input-f3" type="number" step="any" placeholder="e.g. 1.4">
+                </div>
+
+                <div id="extra-fields"></div>
+
+                <button class="btn btn--red" id="predict-btn" disabled style="margin-top:12px;">
+                    ⚡ Run Defense
+                </button>
+
+                <div id="predict-spinner" class="spinner" style="margin-top:16px;"></div>
+            </div>
+
+            <!-- Pipeline visualization -->
+            <div style="display:flex;flex-direction:column;gap:20px;">
+                <div class="card card--blue" style="background:var(--off-white);">
+                    <div class="card__title">
+                        <span class="card__icon card__icon--red">▲</span>
+                        Defense Pipeline
+                    </div>
+                    <div class="pipeline" id="pipeline-viz">
+                        <div class="pipeline__step" id="pipe-input">Input</div>
+                        <span class="pipeline__arrow">→</span>
+                        <div class="pipeline__step" id="pipe-validator">Validator</div>
+                        <span class="pipeline__arrow">→</span>
+                        <div class="pipeline__step" id="pipe-evasion">Evasion<br>Detector</div>
+                        <span class="pipeline__arrow">→</span>
+                        <div class="pipeline__step" id="pipe-model">Base<br>Model</div>
+                        <span class="pipeline__arrow">→</span>
+                        <div class="pipeline__step" id="pipe-ensemble">Ensemble</div>
+                        <span class="pipeline__arrow">→</span>
+                        <div class="pipeline__step" id="pipe-output">Output</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     SECTION 5 — OUTPUT DASHBOARD
+     ═══════════════════════════════════════════════════════ -->
+<section class="section" id="output-section" style="display:none;">
+    <div class="container">
+        <div class="section__header">
+            <span class="section__number">04 — RESULTS</span>
+            <h2 class="section__title">Security Verdict</h2>
+            <p class="section__subtitle">Comprehensive defense analysis for the submitted input.</p>
+        </div>
+
+        <div class="dashboard" id="output-dashboard">
+            <!-- Poisoning Risk -->
+            <div class="dash-card" id="dash-poisoning">
+                <div class="dash-card__label">Poisoning Risk</div>
+                <div class="dash-card__value" id="out-poisoning">—</div>
+            </div>
+
+            <!-- Evasion Risk -->
+            <div class="dash-card" id="dash-evasion">
+                <div class="dash-card__label">Evasion Risk</div>
+                <div class="dash-card__value" id="out-evasion">—</div>
+            </div>
+
+            <!-- Model Prediction -->
+            <div class="dash-card" id="dash-prediction">
+                <div class="dash-card__label">Model Prediction</div>
+                <div class="dash-card__value" id="out-prediction">—</div>
+            </div>
+
+            <!-- Final Decision -->
+            <div class="dash-card" id="dash-decision">
+                <div class="dash-card__label">Final Decision</div>
+                <div class="dash-card__value" id="out-decision" style="font-size:2rem;">—</div>
+            </div>
+
+            <!-- Risk Score -->
+            <div class="dash-card" id="dash-risk" style="grid-column: span 2;">
+                <div class="dash-card__label">Risk Score</div>
+                <div class="dash-card__value" id="out-riskscore">—</div>
+                <div class="risk-bar">
+                    <div class="risk-bar__fill" id="risk-bar-fill" style="width:0%;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detail text -->
+        <div class="card" style="margin-top:28px;">
+            <div class="card__title">
+                <span class="card__icon card__icon--blue">●</span>
+                Analysis Details
+            </div>
+            <p id="out-details" style="font-size:0.9rem; line-height:1.8; font-weight:400;">—</p>
+        </div>
+    </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     FOOTER
+     ═══════════════════════════════════════════════════════ -->
+<div class="geo-bar">
+    <div class="geo-bar__yellow"></div>
+    <div class="geo-bar__red"></div>
+    <div class="geo-bar__blue"></div>
+    <div class="geo-bar__black"></div>
+</div>
+
+<footer class="footer">
+    <span>■</span> Antidote AI &mdash; Adversarially Robust Security Middleware
 </footer>
-</main>
-</div><!-- /landing -->
 
-<!-- ═══════════════════════════════════════════════════════════════
-     DASHBOARD PAGE
-═══════════════════════════════════════════════════════════════ -->
-<div id="dashboard">
-<div class="dash-shell">
 
-  <!-- Dash Header -->
-  <div class="dash-header">
-    <div class="dash-logo">
-      <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-        <polygon points="16,2 30,28 2,28" stroke="#c8a84b" stroke-width="1.5" fill="none" opacity=".4"/>
-        <polygon points="16,7 24,24 8,24" stroke="#c8a84b" stroke-width="1" fill="rgba(200,168,75,0.06)"/>
-        <circle cx="16" cy="18" r="4" fill="#c8a84b" opacity=".85"/>
-      </svg>
-      <div>ANTIDOTE·AI FIREWALL
-        <span class="dash-logo-sub">ADVERSARIAL DEFENSE DASHBOARD v2.0</span>
-      </div>
-    </div>
-    <div style="display:flex;align-items:center;gap:12px;">
-      <div class="ds-badge">● BREAST CANCER DATASET · RANDOMFOREST</div>
-      <div class="dash-status">● SYSTEM ONLINE</div>
-      <button class="dash-back" onclick="returnToLanding()">← BACK TO OVERVIEW</button>
-    </div>
-  </div>
+<!-- ═══════════════════════════════════════════════════════
+     TOAST
+     ═══════════════════════════════════════════════════════ -->
+<div class="toast" id="toast"></div>
 
-  <!-- Main grid -->
-  <div class="dash-grid">
-
-    <!-- ── LEFT: Controls ─────────────────────────── -->
-    <div style="display:flex;flex-direction:column;gap:12px;">
-
-      <!-- Threat meter -->
-      <div class="dcard">
-        <div class="dcard-title">THREAT ASSESSMENT</div>
-        <div style="text-align:center;padding:8px 0;">
-          <div class="threat-ring-wrap">
-            <svg id="d-threat-ring" width="160" height="160" viewBox="0 0 160 160">
-              <circle cx="80" cy="80" r="68" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="10"/>
-              <circle id="d-threat-arc" cx="80" cy="80" r="68" fill="none"
-                stroke="#c8a84b" stroke-width="10" stroke-linecap="round"
-                stroke-dasharray="427" stroke-dashoffset="427"
-                style="transition:stroke-dashoffset .8s cubic-bezier(.4,0,.2,1),stroke .4s"/>
-            </svg>
-            <div class="threat-ring-center">
-              <span class="threat-num" id="d-threat-num" style="color:var(--gold)">0</span>
-              <span class="threat-sub">THREAT SCORE</span>
-            </div>
-          </div>
-          <div class="threat-badge tl-LOW" id="d-threat-badge">LOW</div>
-        </div>
-        <hr class="divider"/>
-        <div class="stat-row"><span class="stat-lbl">DEFENSE STRENGTH</span><span class="stat-val" id="d-def-str" style="color:var(--teal)">—</span></div>
-        <div class="stat-row"><span class="stat-lbl">ATTACK DETECTED</span><span class="stat-val" id="d-atk-det" style="color:var(--muted)">—</span></div>
-        <div class="stat-row"><span class="stat-lbl">ANOMALY SCORE</span><span class="stat-val" id="d-anom-sc" style="color:var(--muted)">—</span></div>
-      </div>
-
-      <!-- Input controls -->
-      <div class="dcard">
-        <div class="dcard-title">INPUT FEATURES</div>
-        <div class="toggle-row">
-          <div class="toggle-lbl">ATTACK MODE</div>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span class="atk-badge atk-off" id="d-atk-badge">NORMAL</span>
-            <label class="toggle-wrap">
-              <input type="checkbox" id="d-atk-toggle"/>
-              <span class="t-slider"></span>
-            </label>
-          </div>
-        </div>
-        <div class="atk-warn" id="d-atk-warn">⚠ ADVERSARIAL PERTURBATION ACTIVE</div>
-        <div class="slider-group" id="d-sliders">
-          <div class="muted" style="font-family:var(--font-m);font-size:.6rem;padding:8px 0;">Loading feature metadata from API...</div>
-        </div>
-        <button class="btn-run" id="d-run-btn" onclick="runDefense()">⚡ RUN DEFENSE PIPELINE</button>
-      </div>
-    </div>
-
-    <!-- ── MIDDLE: Pipeline + Results ────────────────── -->
-    <div style="display:flex;flex-direction:column;gap:12px;">
-
-      <!-- Pipeline -->
-      <div class="dcard">
-        <div class="dcard-title">DEFENSE PIPELINE</div>
-        <div class="pipeline" id="d-pipeline"></div>
-      </div>
-
-      <!-- Results row -->
-      <div class="row2">
-        <div class="dcard">
-          <div class="dcard-title">PREDICTION</div>
-          <div class="result-big">
-            <div class="result-val" id="d-pred-val" style="color:var(--gold)">—</div>
-            <div class="result-label" id="d-pred-label" style="color:var(--gold)"></div>
-            <div class="result-cap">RANDOMFOREST OUTPUT</div>
-          </div>
-          <hr class="divider"/>
-          <div class="conf-wrap">
-            <div class="conf-hdr">
-              <span class="muted">CONFIDENCE</span>
-              <span id="d-conf-pct" style="font-family:var(--font-m);font-size:.68rem;color:var(--gold)">—</span>
-            </div>
-            <div class="conf-outer"><div class="conf-inner" id="d-conf-bar" style="width:0%"></div></div>
-          </div>
-        </div>
-        <div class="dcard">
-          <div class="dcard-title">ANOMALY STATUS</div>
-          <div style="text-align:center;padding:14px 0 8px;">
-            <div style="font-size:1rem;font-family:var(--font-m);display:flex;align-items:center;justify-content:center;">
-              <span class="anom-ring glow-clean" id="d-anom-ring"></span>
-              <span id="d-anom-label" style="color:var(--teal);font-weight:700;letter-spacing:.2em;">CLEAN</span>
-            </div>
-            <div class="result-cap" style="margin-top:6px;">ENSEMBLE VERDICT</div>
-          </div>
-          <hr class="divider"/>
-          <div class="dcard-title" style="margin-bottom:5px;">DETECTOR VOTES</div>
-          <div class="vote-grid" id="d-vote-grid">
-            <div class="vote-cell"><span class="vote-icon">🔍</span><span class="vote-name">ISO FOREST</span></div>
-            <div class="vote-cell"><span class="vote-icon">🧠</span><span class="vote-name">ONE-CLASS SVM</span></div>
-            <div class="vote-cell"><span class="vote-icon">📊</span><span class="vote-name">Z-SCORE</span></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- History -->
-      <div class="dcard">
-        <div class="dcard-title">PREDICTION HISTORY</div>
-        <div class="hist-wrap" id="d-history">
-          <div class="muted" style="padding:6px;font-family:var(--font-m);font-size:.6rem;">No runs yet.</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── RIGHT: Radar + Log ────────────────── -->
-    <div style="display:flex;flex-direction:column;gap:12px;">
-
-      <!-- Radar -->
-      <div class="dcard">
-        <div class="dcard-title">DEFENSE RADAR</div>
-        <canvas id="d-radar" width="230" height="230"></canvas>
-      </div>
-
-      <!-- Log -->
-      <div class="dcard" style="flex:1;">
-        <div class="dcard-title">LIVE DECISION LOG</div>
-        <div class="log-panel" id="d-log">
-          <div class="log-entry"><span class="log-ts">00:00:00</span><span class="log-step">SYSTEM</span><span class="log-msg">Antidote AI Firewall v2 initialized</span></div>
-          <div class="log-entry"><span class="log-ts">——</span><span class="log-step">DATASET</span><span class="log-msg">Breast Cancer Wisconsin · RandomForest ready</span></div>
-        </div>
-      </div>
-    </div>
-
-  </div><!-- /dash-grid -->
-</div><!-- /dash-shell -->
-</div><!-- /dashboard -->
-
-<script>
-/* ═══════════════════════════════════════════════════════════════
-   CONFIG
-═══════════════════════════════════════════════════════════════ */
-const API = 'http://127.0.0.1:8000';
-
-const PIPELINE_STEPS = [
-  {id:'ADV_GEN',   label:'ADVERSARIAL GEN',  icon:'⚡'},
-  {id:'VALIDATOR', label:'VALIDATOR',          icon:'🛡'},
-  {id:'PREP',      label:'PREPROCESSOR',       icon:'⚙'},
-  {id:'ANOMALY',   label:'ANOMALY DETECTOR',   icon:'🔍'},
-  {id:'MODEL',     label:'MODEL INFERENCE',    icon:'🧠'},
-  {id:'THREAT',    label:'THREAT ENGINE',      icon:'⚠'},
-];
-
-const STEP_MAP = {
-  'ADVERSARIAL_GENERATOR':'ADV_GEN','VALIDATOR':'VALIDATOR',
-  'PREPROCESSOR':'PREP','ANOMALY_DETECTOR':'ANOMALY',
-  'MODEL':'MODEL','THREAT_ENGINE':'THREAT',
-};
-
-let featureMeta = [];
-let history = [];
-let radarState = {confidence:0,defense:0,anomaly:0,threat:0,votes:0};
-
-/* ═══ CURSOR ═══════════════════════════════════════════════════ */
-const cur=document.getElementById('cur'),cring=document.getElementById('cur-ring');
-let mx=0,my=0,rx=0,ry=0;
-document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;cur.style.left=mx+'px';cur.style.top=my+'px';});
-(function lr(){rx+=(mx-rx)*.1;ry+=(my-ry)*.1;cring.style.left=rx+'px';cring.style.top=ry+'px';requestAnimationFrame(lr);})();
-function hookHover(){
-  document.querySelectorAll('a,button,.c3d,.mc,.tr,.team-card,.how-item').forEach(el=>{
-    el.addEventListener('mouseenter',()=>cur.classList.add('hover'));
-    el.addEventListener('mouseleave',()=>cur.classList.remove('hover'));
-  });
-}
-hookHover();
-
-/* ═══ THREE.JS BACKGROUND ═══════════════════════════════════════ */
-(function(){
-  const canvas=document.getElementById('three-canvas');
-  const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
-  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-  renderer.setSize(innerWidth,innerHeight);
-  renderer.setClearColor(0,0);
-  const scene=new THREE.Scene();
-  const cam=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.1,100);
-  cam.position.z=5;
-  const sg=new THREE.BufferGeometry();
-  const sp=new Float32Array(2400*3);
-  for(let i=0;i<sp.length;i++)sp[i]=(Math.random()-.5)*22;
-  sg.setAttribute('position',new THREE.BufferAttribute(sp,3));
-  scene.add(new THREE.Points(sg,new THREE.PointsMaterial({color:0xc8a84b,size:.016,transparent:true,opacity:.2})));
-  const ig=new THREE.IcosahedronGeometry(2.4,2);
-  scene.add(new THREE.Mesh(ig,new THREE.MeshBasicMaterial({color:0x0a1830,wireframe:true,transparent:true,opacity:.06})));
-  const lm=new THREE.LineBasicMaterial({color:0xc8a84b,transparent:true,opacity:.04});
-  const lg=new THREE.Group();
-  for(let i=0;i<20;i++){
-    const pts=[new THREE.Vector3((Math.random()-.5)*14,(Math.random()-.5)*10,(Math.random()-.5)*8),new THREE.Vector3((Math.random()-.5)*14,(Math.random()-.5)*10,(Math.random()-.5)*8)];
-    lg.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),lm));
-  }
-  scene.add(lg);
-  let tMx=0,tMy=0;
-  addEventListener('mousemove',e=>{tMx=(e.clientX/innerWidth-.5)*2;tMy=-(e.clientY/innerHeight-.5)*2;});
-  addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
-  let t=0;
-  (function a(){requestAnimationFrame(a);t+=.003;lg.rotation.y=t*.04;lg.rotation.x=t*.018;
-    cam.position.x+=(tMx*.8-cam.position.x)*.025;cam.position.y+=(tMy*.5-cam.position.y)*.025;
-    cam.lookAt(scene.position);renderer.render(scene,cam);})();
-})();
-
-/* ═══ SCROLL REVEAL ══════════════════════════════════════════════ */
-const revealObs=new IntersectionObserver(e=>{e.forEach(en=>{if(en.isIntersecting)en.target.classList.add('visible');});},{threshold:.08});
-document.querySelectorAll('.reveal').forEach(el=>revealObs.observe(el));
-
-/* ═══ THREAT BARS ════════════════════════════════════════════════ */
-const trObs=new IntersectionObserver(e=>{e.forEach(en=>{if(en.isIntersecting){document.querySelectorAll('.tr-fill').forEach((b,i)=>{setTimeout(()=>{b.style.width=b.dataset.w+'%';},200+i*100);});trObs.disconnect();}});},{threshold:.3});
-const ts=document.querySelector('.threat-section');if(ts)trObs.observe(ts);
-
-/* ═══ COUNTER ANIMATION ══════════════════════════════════════════ */
-function animCount(el,target){const dur=1500;let s=null;(function st(ts){if(!s)s=ts;const p=Math.min((ts-s)/dur,1);el.textContent=Math.floor((1-Math.pow(1-p,3))*target);if(p<1)requestAnimationFrame(st);else el.textContent=target;})(performance.now());}
-const mObs=new IntersectionObserver(e=>{e.forEach(en=>{if(en.isIntersecting){document.querySelectorAll('.mc-n[data-target]').forEach(el=>animCount(el,+el.dataset.target));mObs.disconnect();}});},{threshold:.25});
-const mg=document.querySelector('.metrics-grid');if(mg)mObs.observe(mg);
-
-/* ═══ 3D CARD TILT ═══════════════════════════════════════════════ */
-document.querySelectorAll('.c3d').forEach(c=>{
-  c.addEventListener('mousemove',e=>{
-    const r=c.getBoundingClientRect();
-    const dx=(e.clientX-r.left-r.width/2)/(r.width/2),dy=(e.clientY-r.top-r.height/2)/(r.height/2);
-    c.style.setProperty('--mx',`${(e.clientX-r.left)/r.width*100}%`);
-    c.style.setProperty('--my',`${(e.clientY-r.top)/r.height*100}%`);
-    c.style.transform=`translateZ(18px) rotateX(${dy*-8}deg) rotateY(${dx*8}deg)`;
-  });
-  c.addEventListener('mouseleave',()=>c.style.transform='');
-});
-
-/* ═══ WAVEFORM ═══════════════════════════════════════════════════ */
-(function(){
-  const c=document.getElementById('waveform');if(!c)return;
-  const ctx=c.getContext('2d');c.width=c.offsetWidth*2;c.height=104;let ph=0;
-  (function draw(){
-    ctx.clearRect(0,0,c.width,c.height);
-    [{color:'rgba(200,168,75,0.65)',freq:2.2,amp:15,spd:1.3,off:0},
-     {color:'rgba(26,143,255,0.3)',freq:3.6,amp:9,spd:.9,off:1.3},
-     {color:'rgba(0,212,170,0.18)',freq:1.4,amp:20,spd:.5,off:2.6}].forEach(b=>{
-      ctx.beginPath();ctx.strokeStyle=b.color;ctx.lineWidth=1.8;
-      for(let x=0;x<c.width;x++){const y=c.height/2+Math.sin(x*.014*b.freq+ph*b.spd+b.off)*b.amp+Math.sin(x*.038+ph*1.3)*5;x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
-      ctx.stroke();});
-    ph+=.042;requestAnimationFrame(draw);})();
-})();
-
-/* ═══ TERMINAL ═══════════════════════════════════════════════════ */
-const tlines=[
-  {t:'cmd',tx:'antidote scan --dataset="breast_cancer" --model=RandomForest',d:0},
-  {t:'o',tx:'→ Loading Breast Cancer Wisconsin dataset (569 samples, 30 features)...',d:500},
-  {t:'o',tx:'→ Training RandomForestClassifier (200 trees, PGD-hardened)...',d:900},
-  {t:'g',tx:'  Test accuracy: 96.49%',d:1300},
-  {t:'o',tx:'→ Attaching SecureAIWrapper defense layers...',d:1700},
-  {t:'',tx:'',d:1900},
-  {t:'g',tx:'  [LAYER 01] IsolationForest Detector     ACTIVE',d:2000},
-  {t:'g',tx:'  [LAYER 02] OneClassSVM Detector         ACTIVE',d:2300},
-  {t:'g',tx:'  [LAYER 03] Z-Score Filter               ACTIVE  (threshold: 2.8σ)',d:2600},
-  {t:'g',tx:'  [LAYER 04] Adversarial Perturbation     ACTIVE  (ε-injection)',d:2900},
-  {t:'g',tx:'  [LAYER 05] Threat Scoring Engine        ACTIVE  (0-100)',d:3200},
-  {t:'g',tx:'  [LAYER 06] Audit Trail                  ACTIVE  (trace log)',d:3500},
-  {t:'',tx:'',d:3700},
-  {t:'o',tx:'→ Simulating FGSM attack on sample #412...',d:3900},
-  {t:'b',tx:'  [ATTACK]   Raw prediction: BENIGN (fooled by perturbation)',d:4500},
-  {t:'v',tx:'  [ANTIDOTE] IsolationForest score: -0.312  → FLAGGED',d:5000},
-  {t:'v',tx:'  [ANTIDOTE] Z-score max: 3.14σ            → FLAGGED',d:5400},
-  {t:'g',tx:'  [ANTIDOTE] Majority vote: 2/3 detectors ANOMALY',d:5800},
-  {t:'g',tx:'  [ANTIDOTE] Confidence penalty applied: 0.94 → 0.65',d:6200},
-  {t:'',tx:'',d:6500},
-  {t:'o',tx:'  ┌────────────────────────────────────────────────────┐',d:6600},
-  {t:'g',tx:'  │  DEFENSE RESULT:     ATTACK NEUTRALIZED  ✓        │',d:6800},
-  {t:'g',tx:'  │  Dataset label:      "malignant"  (correct)        │',d:7000},
-  {t:'b',tx:'  │  Attack prediction:  "benign"     (blocked)         │',d:7200},
-  {t:'g',tx:'  │  ANTIDOTE output:    "malignant"  (preserved)       │',d:7400},
-  {t:'o',tx:'  └────────────────────────────────────────────────────┘',d:7600},
-  {t:'g',tx:'✓ Defense complete. 569 samples protected. Launch dashboard →',d:7900},
-];
-const termEl=document.getElementById('term-out');let tgo=false;
-const termObs=new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting&&!tgo){tgo=true;termEl.innerHTML='';tlines.forEach(l=>{setTimeout(()=>{const s=document.createElement('span');s.className='tl';if(l.t==='cmd')s.innerHTML=`<span class="tp">➜ </span><span class="tc">${l.tx}</span>`;else if(l.t==='g')s.innerHTML=`<span class="tg">${l.tx}</span>`;else if(l.t==='b')s.innerHTML=`<span class="tb">${l.tx}</span>`;else if(l.t==='v')s.innerHTML=`<span class="tv">${l.tx}</span>`;else if(l.t==='i')s.innerHTML=`<span class="ti">${l.tx}</span>`;else s.innerHTML=`<span class="to">${l.tx}</span>`;termEl.appendChild(s);termEl.scrollTop=termEl.scrollHeight;},l.d);});setTimeout(()=>{const c=document.createElement('span');c.className='tcursor';termEl.appendChild(c);},8200);}});},{threshold:.25});
-const tSec=document.querySelector('.term-section');if(tSec)termObs.observe(tSec);
-
-/* ═══════════════════════════════════════════════════════════════
-   PAGE TRANSITION
-═══════════════════════════════════════════════════════════════ */
-const MSGS = [
-  'LOADING BREAST CANCER DATASET...',
-  'INITIALIZING RANDOMFOREST...',
-  'CALIBRATING ANOMALY DETECTORS...',
-  'DEPLOYING DEFENSE PIPELINE...',
-  'FIREWALL ONLINE',
-];
-
-function launchDashboard(){
-  const overlay = document.getElementById('transition-overlay');
-  const msg     = document.getElementById('tov-msg');
-  overlay.classList.add('active');
-  let i = 0;
-  const iv = setInterval(()=>{
-    if(i < MSGS.length) { msg.textContent = MSGS[i++]; }
-    else {
-      clearInterval(iv);
-      document.getElementById('landing').style.display = 'none';
-      document.getElementById('dashboard').classList.add('active');
-      window.scrollTo(0,0);
-      setTimeout(()=>{ overlay.classList.remove('active'); initDashboard(); }, 300);
-    }
-  }, 400);
-}
-
-function returnToLanding(){
-  const overlay = document.getElementById('transition-overlay');
-  document.getElementById('tov-msg').textContent = 'RETURNING TO OVERVIEW...';
-  overlay.classList.add('active');
-  setTimeout(()=>{
-    document.getElementById('dashboard').classList.remove('active');
-    document.getElementById('landing').style.display = 'block';
-    window.scrollTo(0,0);
-    setTimeout(()=>overlay.classList.remove('active'), 300);
-  }, 600);
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   DASHBOARD INIT
-═══════════════════════════════════════════════════════════════ */
-function initDashboard(){
-  hookHover();
-  loadFeatures();
-  buildPipeline(false);
-  drawRadar(radarState);
-}
-
-/* Load feature metadata from /features endpoint */
-async function loadFeatures(){
-  try {
-    const r = await fetch(`${API}/features`);
-    const d = await r.json();
-    featureMeta = d.features;
-    buildSliders(featureMeta);
-    addLog('FEATURES', 'PASS', `Loaded ${featureMeta.length} features from ${d.dataset}`);
-  } catch(e) {
-    // Fallback: mock breast cancer features
-    featureMeta = [
-      {name:'mean radius',  min:6.9,  max:28.1, mean:14.1},
-      {name:'mean texture', min:9.7,  max:39.3, mean:19.3},
-      {name:'mean perimeter',min:43.8,max:188.5,mean:91.9},
-      {name:'mean area',    min:143,  max:2501, mean:654},
-      {name:'mean smooth',  min:.053, max:.163, mean:.096},
-      {name:'mean compact', min:.019, max:.345, mean:.104},
-      {name:'mean concavity',min:0,   max:.427, mean:.089},
-      {name:'mean concave', min:0,    max:.201, mean:.049},
-      {name:'mean symmetry',min:.106, max:.304, mean:.181},
-      {name:'mean fractal', min:.05,  max:.097, mean:.063},
-    ];
-    buildSliders(featureMeta);
-    addLog('FEATURES', 'WARN', `API offline — using demo feature config`);
-  }
-}
-
-/* ═══ SLIDERS ════════════════════════════════════════════════════ */
-function buildSliders(meta){
-  const wrap = document.getElementById('d-sliders');
-  wrap.innerHTML = '';
-  meta.forEach((f,i)=>{
-    const pct = 50;
-    wrap.innerHTML += `
-      <div class="slider-item">
-        <div class="slider-hdr">
-          <span class="slider-name">${f.name.toUpperCase()}</span>
-          <span class="slider-val" id="sv-${i}">${f.mean.toFixed(3)}</span>
-        </div>
-        <input type="range" id="sl-${i}" min="0" max="100" value="50"
-          style="--pct:50%"
-          oninput="updateSlider(${i}, this.value)"/>
-      </div>`;
-  });
-}
-
-function updateSlider(i, val){
-  const f = featureMeta[i];
-  const realVal = f.min + (parseInt(val)/100) * (f.max - f.min);
-  document.getElementById(`sv-${i}`).textContent = realVal.toFixed(3);
-  document.getElementById(`sl-${i}`).style.setProperty('--pct', val+'%');
-}
-
-function getFeatures(){
-  return featureMeta.map((f,i)=>{
-    const val = parseInt(document.getElementById(`sl-${i}`).value);
-    return f.min + (val/100) * (f.max - f.min);
-  });
-}
-
-/* ═══ ATTACK TOGGLE ══════════════════════════════════════════════ */
-document.getElementById('d-atk-toggle').addEventListener('change', function(){
-  const on = this.checked;
-  document.getElementById('d-atk-badge').textContent = on ? 'ADVERSARIAL' : 'NORMAL';
-  document.getElementById('d-atk-badge').className   = 'atk-badge ' + (on ? 'atk-on' : 'atk-off');
-  document.getElementById('d-atk-warn').className    = 'atk-warn' + (on ? ' vis' : '');
-});
-
-/* ═══ PIPELINE ═══════════════════════════════════════════════════ */
-function buildPipeline(attackMode){
-  const wrap = document.getElementById('d-pipeline');
-  wrap.innerHTML = '';
-  const steps = attackMode ? PIPELINE_STEPS : PIPELINE_STEPS.slice(1);
-  steps.forEach((s,i)=>{
-    const div = document.createElement('div');
-    div.className = 'pipe-step';
-    div.id = 'dp-'+s.id;
-    div.innerHTML = `<div class="pipe-dot"></div><span class="pipe-name">${s.icon} ${s.label}</span><span class="pipe-st" id="dps-${s.id}">IDLE</span><span class="pipe-ms" id="dpm-${s.id}"></span>`;
-    wrap.appendChild(div);
-    if(i < steps.length-1){ const c=document.createElement('div');c.className='pipe-connector';wrap.appendChild(c); }
-  });
-}
-
-function setPipe(id, state, status, ms){
-  const el = document.getElementById('dp-'+id);
-  if(!el) return;
-  el.className = 'pipe-step '+state;
-  const st = document.getElementById('dps-'+id);
-  if(st){ st.textContent=status; st.className='pipe-st log-'+status; }
-  const ms_el = document.getElementById('dpm-'+id);
-  if(ms_el && ms!==undefined) ms_el.textContent = ms+'ms';
-}
-
-/* ═══ LOG ════════════════════════════════════════════════════════ */
-function addLog(step, status, msg){
-  const panel = document.getElementById('d-log');
-  const ts = new Date().toTimeString().slice(0,8);
-  const div = document.createElement('div');
-  div.className = 'log-entry';
-  div.innerHTML = `<span class="log-ts">${ts}</span><span class="log-step log-${status}">${step}</span><span class="log-msg">${msg}</span>`;
-  panel.appendChild(div);
-  panel.scrollTop = panel.scrollHeight;
-}
-
-/* ═══ THREAT RING ════════════════════════════════════════════════ */
-function setThreat(score, level){
-  const circ = 427;
-  const offset = circ - (score/100)*circ;
-  const arc = document.getElementById('d-threat-arc');
-  arc.style.strokeDashoffset = offset;
-  const c = level==='HIGH'?'var(--red)':level==='MEDIUM'?'var(--amber)':'var(--teal)';
-  arc.style.stroke = c;
-  document.getElementById('d-threat-num').textContent = Math.round(score);
-  document.getElementById('d-threat-num').style.color = c;
-  const b = document.getElementById('d-threat-badge');
-  b.textContent = level;
-  b.className = 'threat-badge tl-'+level;
-}
-
-/* ═══ CONFIDENCE ═════════════════════════════════════════════════ */
-function setConf(c){
-  const pct = Math.round(c*100);
-  document.getElementById('d-conf-bar').style.width = pct+'%';
-  document.getElementById('d-conf-pct').textContent = pct+'%';
-}
-
-/* ═══ ANOMALY ════════════════════════════════════════════════════ */
-function setAnomaly(is_anomaly){
-  const ring  = document.getElementById('d-anom-ring');
-  const label = document.getElementById('d-anom-label');
-  if(is_anomaly){
-    ring.className  = 'anom-ring glow-anomaly';
-    label.textContent = 'ANOMALY';
-    label.style.color = 'var(--red)';
-  } else {
-    ring.className  = 'anom-ring glow-clean';
-    label.textContent = 'CLEAN';
-    label.style.color = 'var(--teal)';
-  }
-}
-
-/* ═══ VOTES ══════════════════════════════════════════════════════ */
-function setVotes(votes){
-  const names=['ISO FOREST','ONE-CLASS SVM','Z-SCORE'];
-  const icons=['🔍','🧠','📊'];
-  const keys=['isolation_forest','one_class_svm','z_score_filter'];
-  const grid = document.getElementById('d-vote-grid');
-  grid.innerHTML='';
-  keys.forEach((k,i)=>{
-    const f = votes[k];
-    const d = document.createElement('div');
-    d.className='vote-cell '+(f?'flagged':'clean');
-    d.innerHTML=`<span class="vote-icon">${f?'🚨':icons[i]}</span><span class="vote-name">${names[i]}</span>`;
-    grid.appendChild(d);
-  });
-}
-
-/* ═══ HISTORY ════════════════════════════════════════════════════ */
-function addHistory(data){
-  history.unshift(data);
-  if(history.length>20)history.pop();
-  const wrap = document.getElementById('d-history');
-  wrap.innerHTML='';
-  history.forEach(d=>{
-    const c = d.threat_level==='HIGH'?'var(--red)':d.threat_level==='MEDIUM'?'var(--amber)':'var(--teal)';
-    const el = document.createElement('div');
-    el.className='hist-item';
-    el.innerHTML=`<div class="hi-dot" style="background:${c};box-shadow:0 0 5px ${c}"></div><span class="hi-time">${new Date().toTimeString().slice(0,8)}</span><span class="hi-pred">${d.prediction_label||'PRED='+d.prediction}</span><span class="hi-conf">CONF=${Math.round(d.confidence*100)}%</span><span class="hi-threat" style="color:${c}">${d.threat_level}</span><span class="hi-anom">${d.is_anomaly?'⚠ ANOMALY':''}</span>`;
-    wrap.appendChild(el);
-  });
-}
-
-/* ═══ RADAR ══════════════════════════════════════════════════════ */
-function drawRadar(state){
-  const canvas = document.getElementById('d-radar');
-  if(!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const W=230,H=230,cx=115,cy=115,R=82;
-  ctx.clearRect(0,0,W,H);
-  const axes=[
-    {label:'CONFIDENCE', val:state.confidence},
-    {label:'DEFENSE',    val:state.defense/100},
-    {label:'ACCURACY',   val:1-state.anomaly},
-    {label:'STABILITY',  val:1-state.threat/100},
-    {label:'INTEGRITY',  val:1-(state.votes/3)},
-    {label:'COVERAGE',   val:.75+Math.random()*.2},
-  ];
-  const n=axes.length;
-  // Rings
-  for(let ring=1;ring<=4;ring++){
-    ctx.beginPath();
-    for(let i=0;i<n;i++){
-      const angle=(2*Math.PI*i/n)-Math.PI/2;
-      const r=R*ring/4;
-      const x=cx+r*Math.cos(angle),y=cy+r*Math.sin(angle);
-      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
-    }
-    ctx.closePath();
-    ctx.strokeStyle='rgba(200,168,75,0.1)';ctx.lineWidth=1;ctx.stroke();
-  }
-  // Axes
-  axes.forEach((_,i)=>{
-    const angle=(2*Math.PI*i/n)-Math.PI/2;
-    ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+R*Math.cos(angle),cy+R*Math.sin(angle));
-    ctx.strokeStyle='rgba(200,168,75,0.15)';ctx.lineWidth=1;ctx.stroke();
-  });
-  // Data
-  ctx.beginPath();
-  axes.forEach((a,i)=>{
-    const angle=(2*Math.PI*i/n)-Math.PI/2;
-    const r=R*Math.max(0,Math.min(1,a.val));
-    const x=cx+r*Math.cos(angle),y=cy+r*Math.sin(angle);
-    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
-  });
-  ctx.closePath();
-  ctx.fillStyle='rgba(200,168,75,0.1)';ctx.fill();
-  ctx.strokeStyle='var(--gold)';ctx.lineWidth=1.5;
-  ctx.shadowColor='var(--gold)';ctx.shadowBlur=8;ctx.stroke();ctx.shadowBlur=0;
-  // Dots
-  axes.forEach((a,i)=>{
-    const angle=(2*Math.PI*i/n)-Math.PI/2;
-    const r=R*Math.max(0,Math.min(1,a.val));
-    ctx.beginPath();ctx.arc(cx+r*Math.cos(angle),cy+r*Math.sin(angle),3,0,Math.PI*2);
-    ctx.fillStyle='var(--gold)';ctx.shadowColor='var(--gold)';ctx.shadowBlur=6;ctx.fill();ctx.shadowBlur=0;
-  });
-  // Labels
-  ctx.font='8px Share Tech Mono,monospace';ctx.fillStyle='rgba(200,168,75,0.5)';
-  ctx.textAlign='center';ctx.textBaseline='middle';
-  axes.forEach((a,i)=>{
-    const angle=(2*Math.PI*i/n)-Math.PI/2;
-    const r=R+18;
-    ctx.fillText(a.label,cx+r*Math.cos(angle),cy+r*Math.sin(angle));
-  });
-}
-
-/* ═══ PIPELINE ANIMATION ═════════════════════════════════════════ */
-async function animatePipeline(trace, attackMode){
-  const steps = attackMode ? PIPELINE_STEPS : PIPELINE_STEPS.slice(1);
-  steps.forEach(s=>setPipe(s.id,'','IDLE',undefined));
-  for(const t of trace){
-    const id = STEP_MAP[t.step];
-    if(!id) continue;
-    setPipe(id,'active','...',undefined);
-    await sleep(180);
-    const state = ['PASS','CLEAN','LOW'].includes(t.status)?'pass':['FAIL','ANOMALY','HIGH'].includes(t.status)?'fail':'warn';
-    setPipe(id, state, t.status, t.ms);
-    await sleep(60);
-  }
-}
-
-function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
-
-/* ═══ MAIN RUN ═══════════════════════════════════════════════════ */
-async function runDefense(){
-  if(!featureMeta.length){ addLog('ERROR','FAIL','Features not loaded yet'); return; }
-  const btn = document.getElementById('d-run-btn');
-  const attackMode = document.getElementById('d-atk-toggle').checked;
-  const features = getFeatures();
-
-  btn.classList.add('running');
-  btn.textContent = '⟳ ANALYZING...';
-  buildPipeline(attackMode);
-  addLog('PIPELINE','PASS',`Starting defense sequence${attackMode?' [ADVERSARIAL MODE]':''}`);
-
-  try {
-    const res = await fetch(`${API}/predict`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({features, attack_mode:attackMode}),
-    });
-    if(!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-
-    await animatePipeline(data.pipeline_trace, attackMode);
-
-    // Prediction
-    document.getElementById('d-pred-val').textContent = data.prediction;
-    document.getElementById('d-pred-val').style.color = data.is_anomaly?'var(--amber)':'var(--gold)';
-    document.getElementById('d-pred-label').textContent = data.prediction_label || '';
-    document.getElementById('d-pred-label').style.color = data.prediction===0?'var(--red)':'var(--teal)';
-
-    setConf(data.confidence);
-    setAnomaly(data.is_anomaly);
-    setVotes(data.ensemble_votes||{});
-    setThreat(data.threat_score, data.threat_level);
-
-    document.getElementById('d-def-str').textContent = data.defense_strength.toFixed(1)+'%';
-    document.getElementById('d-def-str').style.color = data.threat_level==='HIGH'?'var(--red)':'var(--teal)';
-    document.getElementById('d-atk-det').textContent = data.attack_detected?'⚠ YES':'✓ NO';
-    document.getElementById('d-atk-det').style.color = data.attack_detected?'var(--red)':'var(--teal)';
-    document.getElementById('d-anom-sc').textContent = (data.anomaly_score*100).toFixed(1)+'%';
-
-    radarState = {confidence:data.confidence,defense:data.defense_strength,anomaly:data.anomaly_score,threat:data.threat_score,votes:Object.values(data.ensemble_votes||{}).filter(Boolean).length};
-    drawRadar(radarState);
-    addHistory(data);
-
-    (data.pipeline_trace||[]).forEach(t=>addLog(t.step,t.status,t.detail));
-    if(data.perturbed_features)
-      addLog('ADV_GEN','INJECTED',`Perturbed features: [${data.perturbed_features.slice(0,4).map(v=>v.toFixed(2)).join(', ')}...]`);
-    addLog('RESULT',data.threat_level,`${data.prediction_label} | Conf=${(data.confidence*100).toFixed(1)}% | Threat=${data.threat_score}`);
-
-  } catch(err){
-    addLog('ERROR','FAIL',`API unreachable (${err.message}) — running demo simulation`);
-    await demoSimulate(features, attackMode);
-  }
-
-  btn.classList.remove('running');
-  btn.textContent = '⚡ RUN DEFENSE PIPELINE';
-}
-
-/* ═══ DEMO SIMULATION (offline) ════════════════════════════════ */
-async function demoSimulate(features, attackMode){
-  const anomScore = attackMode ? 0.45+Math.random()*.45 : Math.random()*.4;
-  const isAnom    = anomScore > 0.44;
-  const conf      = 0.78 + Math.random()*.19;
-  const pred      = Math.random() > 0.5 ? 1 : 0;
-  const label     = pred===0?'MALIGNANT':'BENIGN';
-  const tScore    = isAnom ? 40+Math.random()*50 : Math.random()*30;
-  const tLevel    = tScore>=65?'HIGH':tScore>=32?'MEDIUM':'LOW';
-
-  const fakeTrace = [
-    ...(attackMode?[{step:'ADVERSARIAL_GENERATOR',status:'INJECTED',detail:'epsilon-perturbation applied',ms:1.2}]:[]),
-    {step:'VALIDATOR',status:'PASS',detail:'All 10 features in valid range',ms:1.9},
-    {step:'PREPROCESSOR',status:'PASS',detail:'StandardScaler applied',ms:3.2},
-    {step:'ANOMALY_DETECTOR',status:isAnom?'ANOMALY':'CLEAN',detail:`Score=${anomScore.toFixed(4)} votes=${isAnom?2:0}/3`,ms:14.1},
-    {step:'MODEL',status:'PASS',detail:`RandomForest -> ${label} | conf=${conf.toFixed(4)}`,ms:15.8},
-    {step:'THREAT_ENGINE',status:tLevel,detail:`score=${tScore.toFixed(1)} defense=${(100-tScore*.42).toFixed(1)}%`,ms:17.2},
-  ];
-
-  buildPipeline(attackMode);
-  await animatePipeline(fakeTrace, attackMode);
-
-  document.getElementById('d-pred-val').textContent = pred;
-  document.getElementById('d-pred-label').textContent = label;
-  document.getElementById('d-pred-val').style.color = isAnom?'var(--amber)':'var(--gold)';
-  document.getElementById('d-pred-label').style.color = pred===0?'var(--red)':'var(--teal)';
-
-  setConf(conf); setAnomaly(isAnom);
-  setVotes({isolation_forest:isAnom,one_class_svm:isAnom&&Math.random()>.3,z_score_filter:attackMode});
-  setThreat(tScore, tLevel);
-
-  document.getElementById('d-def-str').textContent = (100-tScore*.42).toFixed(1)+'%';
-  document.getElementById('d-atk-det').textContent = attackMode?'⚠ YES':'✓ NO';
-  document.getElementById('d-atk-det').style.color = attackMode?'var(--red)':'var(--teal)';
-  document.getElementById('d-anom-sc').textContent = (anomScore*100).toFixed(1)+'%';
-
-  radarState = {confidence:conf,defense:100-tScore*.42,anomaly:anomScore,threat:tScore,votes:isAnom?2:0};
-  drawRadar(radarState);
-  addHistory({prediction:pred,prediction_label:label,confidence:conf,threat_level:tLevel,is_anomaly:isAnom});
-  fakeTrace.forEach(t=>addLog(t.step,t.status,t.detail));
-  addLog('DEMO','LOW','Simulation complete — connect backend for real predictions');
-}
-</script>
+<script src="script.js"></script>
 </body>
 </html>
