@@ -1,15 +1,15 @@
 # 🛡️ Antidote-AI
 
-**Adversarially Robust AI Security Middleware**
+### Adversarially Robust AI Security Middleware
 
 Antidote-AI is a multi-layer AI security middleware designed to protect machine learning systems against **data poisoning attacks**, **evasion attacks**, and **distribution drift**.
-It sanitizes training data, monitors inference inputs, and provides explainable risk-based decisions.
+It sanitizes training data, monitors inference inputs, and provides explainable, risk-based decisions.
 
 ---
 
 # 🚀 Features
 
-### 🔐 Training-Time Protection
+## 🔐 Training-Time Protection
 
 * Dataset upload (CSV / Excel)
 * Poisoning detection using Isolation Forest
@@ -17,7 +17,7 @@ It sanitizes training data, monitors inference inputs, and provides explainable 
 * Clean dataset generation
 * Download cleaned dataset
 
-### 🧠 Model Training
+## 🧠 Model Training
 
 * Ensemble base models:
 
@@ -27,7 +27,7 @@ It sanitizes training data, monitors inference inputs, and provides explainable 
 * Training only on sanitized data
 * Model persistence
 
-### 🚨 Inference-Time Protection
+## 🚨 Inference-Time Protection
 
 * Input validation
 * Multi-model evasion detection:
@@ -37,12 +37,12 @@ It sanitizes training data, monitors inference inputs, and provides explainable 
   * Z-score statistical detection
 * Ensemble anomaly decision
 
-### 🌊 Drift Detection
+## 🌊 Drift Detection
 
 * Detects distribution shift between training and incoming data
 * Statistical comparison using KS-test
 
-### 📊 Risk Scoring Engine
+## 📊 Risk Scoring Engine
 
 * Weighted risk calculation
 * Severity classification:
@@ -51,18 +51,18 @@ It sanitizes training data, monitors inference inputs, and provides explainable 
   * MEDIUM
   * HIGH
 
-### 📥 Clean Dataset Download
+## 📥 Clean Dataset Download
 
 * Users can download cleaned dataset after poisoning removal
 
-### 📝 Logging System
+## 📝 Logging System
 
 * Poisoning attempts
 * Evasion attempts
 * Final decisions
 * Risk scores
 
-### 🔍 Explainability
+## 🔍 Explainability
 
 * Displays reason for blocking
 * Feature deviation explanation
@@ -71,10 +71,12 @@ It sanitizes training data, monitors inference inputs, and provides explainable 
 
 # 🧠 System Architecture
 
-Training Phase:
+### Training Phase
+
 Dataset Upload → Poisoning Detection → Clean Dataset → Model Training
 
-Inference Phase:
+### Inference Phase
+
 Input → Validator → Evasion Ensemble → Drift Detection → Model Ensemble → Risk Engine → Decision
 
 ---
@@ -93,13 +95,13 @@ Voting-based ensemble improves detection accuracy.
 
 # 📊 Risk Score Formula
 
-Risk score calculated using weighted components:
-
+```
 risk =
 0.25 * poisoning_score +
 0.25 * evasion_score +
 0.25 * drift_score +
 0.25 * model_confidence
+```
 
 Output:
 
@@ -111,6 +113,7 @@ Output:
 
 # 📁 Folder Structure
 
+```
 antidote-ai/
 │
 ├── backend/
@@ -121,7 +124,7 @@ antidote-ai/
 │   ├── ensemble_models.py
 │   ├── risk_engine.py
 │   ├── logger.py
-│   ├── explainability.py
+│   └── explainability.py
 │
 ├── models/
 │
@@ -132,26 +135,22 @@ antidote-ai/
 ├── frontend/
 │   ├── index.html
 │   ├── style.css
-│   ├── script.js
+│   └── script.js
 │
 ├── app.py
 └── requirements.txt
+```
 
 ---
 
 # 🔌 API Endpoints
 
-POST /upload
-Upload dataset and detect poisoning
-
-GET /download-cleaned
-Download sanitized dataset
-
-POST /train
-Train ensemble models
-
-POST /predict
-Secure prediction pipeline
+| Method | Endpoint          | Description                         |
+| ------ | ----------------- | ----------------------------------- |
+| POST   | /upload           | Upload dataset and detect poisoning |
+| GET    | /download-cleaned | Download sanitized dataset          |
+| POST   | /train            | Train ensemble models               |
+| POST   | /predict          | Secure prediction pipeline          |
 
 ---
 
@@ -176,7 +175,7 @@ Dashboard displays:
 
 # 🧰 Tech Stack
 
-Backend:
+### Backend
 
 * Python
 * Flask
@@ -186,13 +185,13 @@ Backend:
 * scipy
 * joblib
 
-Frontend:
+### Frontend
 
 * HTML
 * CSS (Bauhaus Design System)
 * JavaScript
 
-Models:
+### Models
 
 * IsolationForest
 * OneClassSVM
@@ -204,37 +203,53 @@ Models:
 
 # ⚙️ Installation
 
-Clone repository:
+### Clone repository
 
+```
 git clone <repo-url>
+cd antidote-ai
+```
 
-Install dependencies:
+### Install dependencies
 
+```
 pip install -r requirements.txt
+```
 
-Run server:
+### Run server
 
+```
 python app.py
+```
 
-Open frontend:
+### Open in browser
 
+```
 http://localhost:5000
+```
 
 ---
 
 # 📥 Dataset Format
 
-CSV format:
-
+```
 feature1, feature2, feature3, label
+```
+
+Example:
+
+```
+0.2,0.5,0.3,0
+0.25,0.45,0.35,1
+```
 
 ---
 
 # 🛡️ Decision Logic
 
-BLOCK → High risk malicious input
-FLAG → Suspicious input detected
-ALLOW → Safe input
+* **BLOCK** → High risk malicious input
+* **FLAG** → Suspicious input detected
+* **ALLOW** → Safe input
 
 ---
 
@@ -259,4 +274,4 @@ To provide a **robust AI middleware** that secures machine learning systems agai
 
 # 👨‍💻 Authors
 
-Antidote-AI Security Middleware Project
+Sohan Varkhedi
