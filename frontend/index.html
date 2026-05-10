@@ -311,6 +311,70 @@
             </div>
         </div>
 
+        <!-- ═══════════════════════════════════════════════════
+             EVASION VOTING PANEL
+             ═══════════════════════════════════════════════════ -->
+        <div class="card" style="margin-top:28px;" id="evasion-voting-card">
+            <div class="card__title">
+                <span class="card__icon card__icon--red">▲</span>
+                Evasion Voting Panel
+            </div>
+
+            <div class="voting-grid" id="voting-grid">
+                <!-- SVM Vote Card -->
+                <div class="vote-card" id="vote-svm">
+                    <div class="vote-card__icon">⬡</div>
+                    <div class="vote-card__name">One-Class SVM</div>
+                    <div class="vote-card__status vote-card__status--loading" id="vote-svm-status">
+                        <div class="vote-shimmer"></div>
+                        Analyzing…
+                    </div>
+                    <div class="vote-card__result" id="vote-svm-result">—</div>
+                </div>
+
+                <!-- Isolation Forest Vote Card -->
+                <div class="vote-card" id="vote-iforest">
+                    <div class="vote-card__icon">⬢</div>
+                    <div class="vote-card__name">Isolation Forest</div>
+                    <div class="vote-card__status vote-card__status--loading" id="vote-iforest-status">
+                        <div class="vote-shimmer"></div>
+                        Analyzing…
+                    </div>
+                    <div class="vote-card__result" id="vote-iforest-result">—</div>
+                </div>
+
+                <!-- Z-score Vote Card -->
+                <div class="vote-card" id="vote-zscore">
+                    <div class="vote-card__icon">△</div>
+                    <div class="vote-card__name">Z-score Detection</div>
+                    <div class="vote-card__status vote-card__status--loading" id="vote-zscore-status">
+                        <div class="vote-shimmer"></div>
+                        Analyzing…
+                    </div>
+                    <div class="vote-card__result" id="vote-zscore-result">—</div>
+                </div>
+            </div>
+
+            <!-- Voting Summary -->
+            <div class="voting-summary" id="voting-summary" style="display:none;">
+                <div class="voting-summary__count">
+                    <span class="voting-summary__label">Majority Vote</span>
+                    <span class="voting-summary__value" id="vote-count">— / 3</span>
+                </div>
+                <div class="voting-summary__confidence">
+                    <span class="voting-summary__label">Evasion Confidence</span>
+                    <span class="voting-summary__value" id="vote-confidence">—%</span>
+                </div>
+                <div class="voting-summary__bar-wrap">
+                    <span class="voting-summary__label">Confidence Level</span>
+                    <div class="voting-summary__bar">
+                        <div class="voting-summary__bar-fill" id="vote-conf-bar"></div>
+                    </div>
+                </div>
+                <div class="voting-summary__badge" id="vote-badge">—</div>
+            </div>
+        </div>
+
         <!-- Explanation detail -->
         <div class="card" style="margin-top:28px;" id="explanation-card">
             <div class="card__title">

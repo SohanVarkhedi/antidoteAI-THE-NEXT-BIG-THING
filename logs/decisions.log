@@ -1,2 +1,4 @@
 2026-04-10T17:46:04 | INFO | input=[5.1, 3.5, 1.4]... | decision=BLOCK | risk=36 | severity=MEDIUM | drift=True | explanation=feature1 deviation high; feature2 deviation high
 2026-04-10T17:51:28 | INFO | input=[0.0, 0.0, 0.0]... | decision=BLOCK | risk=30 | severity=LOW | drift=True | explanation=All features within expected range
+2026-05-04T17:17:29 | INFO | input=[1.0, -1.0, 2.0]... | decision=BLOCK | risk=51 | severity=MEDIUM | drift=True | explanation=feature3 deviation high
+2026-05-04T18:52:12 | INFO | input=[2.0, -3.0, 7.0]... | decision=BLOCK | risk=53 | severity=MEDIUM | drift=True | explanation=feature1 deviation high; feature2 deviation low; feature3 deviation high

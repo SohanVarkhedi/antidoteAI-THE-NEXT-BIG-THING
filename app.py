@@ -20,6 +20,7 @@ from flask_cors import CORS
 from backend.poisoning_detector import detect_poisoning
 from backend.train_model import train_model
 from backend.evasion_detector import EvasionDetector
+from backend.evasion_ensemble import EvasionEnsemble
 from backend.validator import validate_input
 from backend.ensemble import ensemble_decision
 from backend.ensemble_models import train_ensemble
@@ -47,6 +48,7 @@ state = {
     "poisoning_result": None,  # dict from poisoning detector
     "model_info": None,        # dict from training step
     "evasion_detector": EvasionDetector(),
+    "evasion_ensemble": EvasionEnsemble(),
     "drift_detector": DriftDetector(),
 }
 
@@ -159,10 +161,14 @@ def train():
 
     state["model_info"] = info
 
-    # Fit evasion detector on the clean training features
+    # Fit evasion detectors on the clean training features
     X_clean = cleaned_df.drop(columns=[target_col]).select_dtypes(include=[np.number])
     state["evasion_detector"].fit(X_clean.values)
     state["evasion_detector"].save()
+
+    # Fit evasion ensemble (SVM + IsoForest + Z-score)
+    state["evasion_ensemble"].fit(X_clean.values)
+    state["evasion_ensemble"].save()
 
     # Fit drift detector on the clean training features
     state["drift_detector"].fit(X_clean.values)
@@ -234,18 +240,26 @@ def predict():
             "details": "Validation failed: " + "; ".join(val["errors"]),
         })
 
-    # 2 ── Evasion detection
-    evasion = {"evasion_flag": False, "decision_score": 0.0}
-    if state["evasion_detector"]._fitted:
-        evasion = state["evasion_detector"].predict(features)
+    # 2 ── Evasion ensemble detection (SVM + IsoForest + Z-score)
+    evasion_ens = {
+        "evasion_flag": False, "confidence": 0.0,
+        "svm": "normal", "isolation_forest": "normal", "zscore": "normal",
+        "votes_for": 0, "votes_total": 3,
+        "svm_score": 0.0, "iforest_score": 0.0, "zscore_max": 0.0,
+    }
+    if state["evasion_ensemble"]._fitted:
+        evasion_ens = state["evasion_ensemble"].predict(features)
     else:
-        if state["evasion_detector"].load():
-            evasion = state["evasion_detector"].predict(features)
+        if state["evasion_ensemble"].load():
+            evasion_ens = state["evasion_ensemble"].predict(features)
+
+    # Legacy single-detector (kept for backward compat)
+    evasion = {"evasion_flag": evasion_ens["evasion_flag"], "decision_score": evasion_ens.get("svm_score", 0.0)}
 
     log_evasion(
         input_summary=str(features[:3]) + "...",
-        evasion_flag=evasion["evasion_flag"],
-        decision_score=evasion["decision_score"],
+        evasion_flag=evasion_ens["evasion_flag"],
+        decision_score=evasion_ens["confidence"],
     )
 
     # 3 ── Drift detection
@@ -270,8 +284,8 @@ def predict():
     except Exception:
         confidence = 1.0
 
-    # 5 ── Risk scoring
-    evasion_risk_score = min(abs(evasion["decision_score"]) * 20, 100) if evasion["evasion_flag"] else 0.0
+    # 5 ── Risk scoring (use evasion confidence from ensemble)
+    evasion_risk_score = evasion_ens["confidence"] * 100
     poisoning_flag = False  # only meaningful during upload phase
     poisoning_score = 100.0 if poisoning_flag else 0.0
 
@@ -292,9 +306,9 @@ def predict():
     # 7 ── Ensemble decision
     result = ensemble_decision(
         poisoning_flag=poisoning_flag,
-        evasion_flag=evasion["evasion_flag"],
+        evasion_flag=evasion_ens["evasion_flag"],
         model_prediction=prediction,
-        evasion_score=evasion["decision_score"],
+        evasion_score=evasion_ens["confidence"],
         model_confidence=confidence,
         drift_flag=drift["drift_flag"],
         severity=risk_result["severity"],
@@ -313,8 +327,15 @@ def predict():
 
     return jsonify({
         "poisoning_risk": poisoning_flag,
-        "evasion_risk": evasion["evasion_flag"],
-        "evasion_score": evasion["decision_score"],
+        "evasion_risk": evasion_ens["evasion_flag"],
+        "evasion_confidence": evasion_ens["confidence"],
+        "evasion_votes": {
+            "svm": evasion_ens["svm"],
+            "isolation_forest": evasion_ens["isolation_forest"],
+            "zscore": evasion_ens["zscore"],
+            "votes_for": evasion_ens["votes_for"],
+            "votes_total": evasion_ens["votes_total"],
+        },
         "model_prediction": prediction,
         "model_confidence": round(confidence, 4),
         "drift_flag": drift["drift_flag"],

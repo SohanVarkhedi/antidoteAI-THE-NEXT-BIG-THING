@@ -1,2 +1,8 @@
 2026-04-10T17:44:21 | INFO | file=test_dataset.csv | total=200 | suspicious=20 | cleaned=180
 2026-04-10T17:50:20 | INFO | file=test_dataset.csv | total=200 | suspicious=20 | cleaned=180
+2026-05-04T17:16:52 | INFO | file=test_dataset.csv | total=200 | suspicious=20 | cleaned=180
+2026-05-04T18:46:19 | INFO | file=test_dataset.csv | total=200 | suspicious=20 | cleaned=180
+2026-05-04T19:05:28 | INFO | file=pit_stops.csv | total=11371 | suspicious=1137 | cleaned=10234
+2026-05-04T19:07:58 | INFO | file=seasons.csv | total=75 | suspicious=8 | cleaned=67
+2026-05-04T19:09:23 | INFO | file=lap_times.csv | total=589081 | suspicious=58908 | cleaned=530173
+2026-05-04T19:10:38 | INFO | file=lap_times.csv | total=589081 | suspicious=58908 | cleaned=530173

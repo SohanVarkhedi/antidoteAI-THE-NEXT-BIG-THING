@@ -981,3 +981,268 @@ h1, h2, h3, h4, h5, h6 {
 .toast--success { background: #1a8a3a; color: var(--white); }
 .toast--error   { background: var(--red); color: var(--white); }
 .toast--info    { background: var(--blue); color: var(--white); }
+
+/* ══════════════════════════════════════════════════════════════════
+   EVASION VOTING PANEL
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── Grid of three detector cards ───────────────────────────────── */
+.voting-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-top: 8px;
+}
+
+@media (max-width: 768px) {
+    .voting-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Individual vote card ────────────────────────────────────────── */
+.vote-card {
+    border: 3px solid var(--black);
+    padding: 28px 20px 24px;
+    text-align: center;
+    background: var(--white);
+    box-shadow: 4px 4px 0px var(--black);
+    position: relative;
+    overflow: hidden;
+    /* starts hidden; JS adds .vote-card--revealed */
+    opacity: 0;
+    transform: scale(0.88) translateY(10px);
+    transition: opacity 0.35s ease, transform 0.35s ease,
+                background 0.4s ease, border-color 0.4s ease;
+}
+
+.vote-card--revealed {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+}
+
+/* Color-state overrides */
+.vote-card--anomaly {
+    background: #FFF0F0;
+    border-color: var(--red);
+    box-shadow: 4px 4px 0px var(--red);
+}
+
+.vote-card--normal {
+    background: #F0FFF4;
+    border-color: #1a8a3a;
+    box-shadow: 4px 4px 0px #1a8a3a;
+}
+
+.vote-card--loading {
+    background: #FFFDE8;
+    border-color: var(--yellow);
+    box-shadow: 4px 4px 0px var(--yellow);
+}
+
+/* ── Icon ────────────────────────────────────────────────────────── */
+.vote-card__icon {
+    font-size: 2rem;
+    margin-bottom: 10px;
+    display: block;
+    line-height: 1;
+    transition: color 0.4s;
+}
+
+.vote-card--anomaly .vote-card__icon { color: var(--red); }
+.vote-card--normal  .vote-card__icon { color: #1a8a3a; }
+.vote-card--loading .vote-card__icon { color: #b89000; }
+
+/* ── Name label ──────────────────────────────────────────────────── */
+.vote-card__name {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: #666;
+    margin-bottom: 16px;
+}
+
+/* ── Status chip (loading | result) ─────────────────────────────── */
+.vote-card__status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 8px 14px;
+    border: 2px solid currentColor;
+    min-height: 36px;
+    position: relative;
+    overflow: hidden;
+    transition: color 0.4s, border-color 0.4s, background 0.4s;
+}
+
+.vote-card__status--loading {
+    color: #b89000;
+    border-color: var(--yellow);
+    background: #FFFDE8;
+}
+
+.vote-card__status--anomaly {
+    color: var(--red);
+    border-color: var(--red);
+    background: #FFF0F0;
+    animation: vote-reveal 0.4s ease-out;
+}
+
+.vote-card__status--normal {
+    color: #1a8a3a;
+    border-color: #1a8a3a;
+    background: #E8F5E9;
+    animation: vote-reveal 0.4s ease-out;
+}
+
+/* ── Inline result score/detail ──────────────────────────────────── */
+.vote-card__result {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #888;
+    margin-top: 10px;
+    letter-spacing: 0.06em;
+    min-height: 18px;
+    transition: color 0.4s;
+}
+
+.vote-card--anomaly .vote-card__result { color: #c0352a; }
+.vote-card--normal  .vote-card__result { color: #1a8a3a; }
+
+/* ── Shimmer animation (loading state) ──────────────────────────── */
+.vote-shimmer {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 192, 32, 0.35) 50%,
+        transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position:  200% 0; }
+}
+
+/* ── Scale-up on vote reveal ─────────────────────────────────────── */
+@keyframes vote-reveal {
+    0%   { transform: scale(0.92); opacity: 0.4; }
+    60%  { transform: scale(1.04); opacity: 1;   }
+    100% { transform: scale(1);    opacity: 1;   }
+}
+
+/* ── Voting Summary row ──────────────────────────────────────────── */
+.voting-summary {
+    margin-top: 28px;
+    padding: 24px 32px;
+    border: 3px solid var(--black);
+    background: var(--off-white);
+    box-shadow: 4px 4px 0px var(--black);
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 24px;
+    animation: slideUp 0.4s ease-out;
+}
+
+.voting-summary__label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: #666;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.voting-summary__count,
+.voting-summary__confidence {
+    display: flex;
+    flex-direction: column;
+}
+
+.voting-summary__value {
+    font-size: 1.6rem;
+    font-weight: 900;
+    color: var(--black);
+    line-height: 1.1;
+}
+
+/* ── Final verdict badge ─────────────────────────────────────────── */
+.voting-summary__badge {
+    margin-left: auto;
+    padding: 12px 28px;
+    font-size: 1rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    border: 3px solid var(--black);
+}
+
+.voting-summary__badge--evasion {
+    background: var(--red);
+    color: var(--white);
+    box-shadow: 4px 4px 0px #8b0000;
+    animation: badge-pulse 1.4s ease-in-out infinite;
+}
+
+.voting-summary__badge--safe {
+    background: #1a8a3a;
+    color: var(--white);
+    box-shadow: 4px 4px 0px #0d4d20;
+    animation: badge-pulse-green 1.4s ease-in-out infinite;
+}
+
+@keyframes badge-pulse {
+    0%, 100% { box-shadow: 4px 4px 0px #8b0000, 0 0 0 0 rgba(208,32,32,0.5); }
+    50%       { box-shadow: 4px 4px 0px #8b0000, 0 0 0 8px rgba(208,32,32,0); }
+}
+
+@keyframes badge-pulse-green {
+    0%, 100% { box-shadow: 4px 4px 0px #0d4d20, 0 0 0 0 rgba(26,138,58,0.5); }
+    50%       { box-shadow: 4px 4px 0px #0d4d20, 0 0 0 8px rgba(26,138,58,0); }
+}
+
+/* ── Confidence bar inside vote summary ──────────────────────────── */
+.voting-summary__bar-wrap {
+    flex: 1;
+    min-width: 160px;
+    display: flex;
+    flex-direction: column;
+}
+
+.voting-summary__bar {
+    height: 10px;
+    background: #ddd;
+    border: 2px solid var(--black);
+    margin-top: 8px;
+    overflow: hidden;
+}
+
+.voting-summary__bar-fill {
+    height: 100%;
+    width: 0%;
+    transition: width 0.7s ease;
+}
+
+.voting-summary__bar-fill--high   { background: var(--red); }
+.voting-summary__bar-fill--medium { background: var(--yellow); }
+.voting-summary__bar-fill--low    { background: #1a8a3a; }
+
+/* ── Fade-in for results ─────────────────────────────────────────── */
+@keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.voting-summary {
+    animation: fade-in-up 0.45s ease-out;
+}

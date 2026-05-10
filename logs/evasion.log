@@ -1,2 +1,4 @@
 2026-04-10T17:46:04 | INFO | input=[5.1, 3.5, 1.4]... | evasion_flag=True | score=-2.0961
 2026-04-10T17:51:28 | INFO | input=[0.0, 0.0, 0.0]... | evasion_flag=False | score=0.0136
+2026-05-04T17:17:28 | INFO | input=[1.0, -1.0, 2.0]... | evasion_flag=True | score=0.6700
+2026-05-04T18:52:12 | INFO | input=[2.0, -3.0, 7.0]... | evasion_flag=True | score=1.0000

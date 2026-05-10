@@ -49,6 +49,22 @@ const outExplanation = $('#out-explanation');
 
 const toastEl = $('#toast');
 
+// Voting panel refs
+const voteSvmCard      = $('#vote-svm');
+const voteSvmStatus    = $('#vote-svm-status');
+const voteSvmResult    = $('#vote-svm-result');
+const voteIforestCard  = $('#vote-iforest');
+const voteIforestStatus= $('#vote-iforest-status');
+const voteIforestResult= $('#vote-iforest-result');
+const voteZscoreCard   = $('#vote-zscore');
+const voteZscoreStatus = $('#vote-zscore-status');
+const voteZscoreResult = $('#vote-zscore-result');
+const votingSummary    = $('#voting-summary');
+const voteCount        = $('#vote-count');
+const voteConfidence   = $('#vote-confidence');
+const voteConfBar      = $('#vote-conf-bar');
+const voteBadge        = $('#vote-badge');
+
 // ── State ────────────────────────────────────────────────────────
 let nFeatures = 3;  // updated after training
 
@@ -261,6 +277,7 @@ predictBtn.addEventListener('click', async () => {
     predictBtn.disabled = true;
     predictSpinner.classList.add('spinner--visible');
     resetPipeline();
+    resetVotingPanel();
     activatePipeStep('pipe-input');
 
     try {
@@ -426,6 +443,102 @@ function renderDashboard(data) {
 
     // Details
     outDetails.textContent = data.details || '—';
+
+    // Voting panel — sequential animated reveal
+    if (data.evasion_votes) {
+        renderVotingPanel(data.evasion_votes, data.evasion_confidence);
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  VOTING PANEL — Reset & Animated Reveal
+// ══════════════════════════════════════════════════════════════════
+
+function resetVotingPanel() {
+    votingSummary.style.display = 'none';
+
+    [voteSvmCard, voteIforestCard, voteZscoreCard].forEach((card) => {
+        card.className = 'vote-card vote-card--loading';
+    });
+
+    [voteSvmStatus, voteIforestStatus, voteZscoreStatus].forEach((st) => {
+        st.className = 'vote-card__status vote-card__status--loading';
+        st.innerHTML = '<div class="vote-shimmer"></div>Analyzing\u2026';
+    });
+
+    [voteSvmResult, voteIforestResult, voteZscoreResult].forEach((r) => {
+        r.textContent = '—';
+    });
+
+    voteCount.textContent = '— / 3';
+    voteConfidence.textContent = '—%';
+    voteConfBar.style.width = '0%';
+    voteConfBar.className = 'voting-summary__bar-fill';
+    voteBadge.textContent = '—';
+    voteBadge.className = 'voting-summary__badge';
+}
+
+function revealVoteCard(card, statusEl, resultEl, result, scoreText) {
+    const isAnomaly = result === 'anomaly';
+    const stateClass = isAnomaly ? 'anomaly' : 'normal';
+    const label = isAnomaly ? '⬛ ANOMALY' : '✓ NORMAL';
+
+    // Card colour
+    card.className = `vote-card vote-card--${stateClass} vote-card--revealed`;
+
+    // Status chip — remove shimmer, apply colour
+    statusEl.className = `vote-card__status vote-card__status--${stateClass}`;
+    statusEl.textContent = label;
+
+    // Detail score
+    resultEl.textContent = scoreText || '';
+}
+
+async function renderVotingPanel(votes, confidence) {
+    const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    // Staggered sequential reveal
+    await delay(300);
+    revealVoteCard(
+        voteSvmCard, voteSvmStatus, voteSvmResult,
+        votes.svm,
+        votes.svm === 'anomaly' ? 'Decision boundary exceeded' : 'Within normal boundary'
+    );
+
+    await delay(300);
+    revealVoteCard(
+        voteIforestCard, voteIforestStatus, voteIforestResult,
+        votes.isolation_forest,
+        votes.isolation_forest === 'anomaly' ? 'Isolated outlier detected' : 'Within forest distribution'
+    );
+
+    await delay(300);
+    revealVoteCard(
+        voteZscoreCard, voteZscoreStatus, voteZscoreResult,
+        votes.zscore,
+        votes.zscore === 'anomaly' ? '|Z| > threshold detected' : 'Z-score within bounds'
+    );
+
+    // Slight pause before summary
+    await delay(200);
+
+    // Populate summary
+    const pct = Math.round((confidence || 0) * 100);
+    voteCount.textContent = `${votes.votes_for} / ${votes.votes_total}`;
+    voteConfidence.textContent = `${pct}%`;
+
+    // Confidence bar colour
+    const barClass = pct >= 67 ? 'high' : pct >= 34 ? 'medium' : 'low';
+    voteConfBar.className = `voting-summary__bar-fill voting-summary__bar-fill--${barClass}`;
+    // Trigger transition after a frame
+    requestAnimationFrame(() => { voteConfBar.style.width = `${pct}%`; });
+
+    // Badge
+    const isEvasion = (votes.votes_for || 0) >= 2;
+    voteBadge.textContent = isEvasion ? '⚠ EVASION DETECTED' : '✓ SAFE INPUT';
+    voteBadge.className = `voting-summary__badge voting-summary__badge--${isEvasion ? 'evasion' : 'safe'}`;
+
+    votingSummary.style.display = 'flex';
 }
 
 function boolIndicator(value) {
